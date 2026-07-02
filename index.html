@@ -5,23 +5,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Permanente con Supabase</title>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #efeae2; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .chat-container { width: 100%; max-width: 450px; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 85vh; overflow: hidden; }
-        .chat-header { background: #1c1c1c; color: #3ecf8e; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; border-bottom: 2px solid #3ecf8e; }
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background-color: #f4f4f5; }
-        .msg { background: white; padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; white-space: pre-wrap; }
-        .msg.mine { background: #3ecf8e; color: white; align-self: flex-end; }
-        .msg img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
-        .chat-form { display: flex; padding: 10px; background: #f0f0f0; gap: 10px; align-items: center; position: relative; }
+        /* Variables de color para manejar ambos temas de forma limpia */
+        :root {
+            --bg-body: #efeae2;
+            --bg-container: #fff;
+            --bg-header: #1c1c1c;
+            --text-header: #3ecf8e;
+            --bg-messages: #f4f4f5;
+            --bg-msg-other: #fff;
+            --text-msg-other: #000;
+            --bg-msg-mine: #3ecf8e;
+            --text-msg-mine: #fff;
+            --bg-form: #f0f0f0;
+            --bg-input: #fff;
+            --text-input: #000;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #09090b;
+            --bg-container: #18181b;
+            --bg-header: #27272a;
+            --text-header: #3ecf8e;
+            --bg-messages: #09090b;
+            --bg-msg-other: #27272a;
+            --text-msg-other: #f4f4f5;
+            --bg-msg-mine: #065f46;
+            --text-msg-mine: #fff;
+            --bg-form: #18181b;
+            --bg-input: #27272a;
+            --text-input: #f4f4f5;
+        }
+
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg-body); margin: 0; padding: 20px; display: flex; justify-content: center; transition: background 0.3s; }
+        .chat-container { width: 100%; max-width: 450px; background: var(--bg-container); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 85vh; overflow: hidden; transition: background 0.3s; }
         
-        /* Cambiado a textarea con scroll interno sutil */
-        .chat-form textarea { flex: 1; padding: 10px 12px; border: none; border-radius: 15px; outline: none; font-size: 1em; resize: none; font-family: inherit; height: 20px; max-height: 80px; }
+        /* Cabecera con distribución para el botón de tema */
+        .chat-header { background: var(--bg-header); color: var(--text-header); padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; border-bottom: 2px solid #3ecf8e; display: flex; justify-content: space-between; align-items: center; transition: background 0.3s; }
+        .theme-toggle { background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 0 5px; }
+
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background-color: var(--bg-messages); transition: background 0.3s; }
+        .msg { background: var(--bg-msg-other); color: var(--text-msg-other); padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; white-space: pre-wrap; transition: background 0.2s, color 0.2s; }
+        .msg.mine { background: var(--bg-msg-mine); color: var(--text-msg-mine); align-self: flex-end; }
+        .msg img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
+        
+        .chat-form { display: flex; padding: 10px; background: var(--bg-form); gap: 10px; align-items: center; position: relative; transition: background 0.3s; }
+        .chat-form textarea { flex: 1; padding: 10px 12px; border: none; border-radius: 15px; outline: none; font-size: 1em; resize: none; font-family: inherit; height: 20px; max-height: 80px; background: var(--bg-input); color: var(--text-input); transition: background 0.3s, color 0.3s; }
         
         .file-label { cursor: pointer; font-size: 22px; padding: 5px; }
         .file-label input { display: none; }
         .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; align-self: flex-end; }
         .btn-submit:disabled { background: #ccc; }
-        .preview-text { font-size: 11px; color: #555; display: none; background: #fff; padding: 5px; border-radius: 5px; text-align: center; }
+        .preview-text { font-size: 11px; color: #555; display: none; background: var(--bg-container); color: var(--text-msg-other); padding: 5px; border-radius: 5px; text-align: center; }
         .log-error { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 10px; border: 1px solid #fca5a5; }
         .log-info { background: #e0f2fe; color: #0369a1; padding: 8px; border-radius: 6px; font-size: 0.85em; text-align: center; margin: 5px 0; }
     </style>
@@ -29,7 +63,10 @@
 <body>
 
 <div class="chat-container">
-    <div class="chat-header">Supabase Chat - GH Pages</div>
+    <div class="chat-header">
+        <span>Supabase Chat</span>
+        <button class="theme-toggle" id="themeToggle" title="Cambiar tema">🌙</button>
+    </div>
     <div class="preview-text" id="filePreview">📸 Imagen lista (desde archivo o portapapeles)</div>
     <div class="chat-messages" id="chatMessages">Cargando historial...</div>
     
@@ -38,8 +75,7 @@
             📎
             <input type="file" id="fileInput" accept="image/*">
         </label>
-        <!-- Cambiado a textarea para permitir saltos de línea -->
-        <textarea id="msgInput" placeholder="Escribe un mensaje... (Enter envía, Ctrl+Enter salta línea)" autocomplete="off"></textarea>
+        <textarea id="msgInput" placeholder="Escribe un mensaje..." autocomplete="off"></textarea>
         <button type="submit" class="btn-submit" id="sendBtn">→</button>
     </form>
 </div>
@@ -58,43 +94,55 @@
     const msgInput = document.getElementById('msgInput');
     const filePreview = document.getElementById('filePreview');
     const sendBtn = document.getElementById('sendBtn');
+    const themeToggle = document.getElementById('themeToggle');
 
     const mySessionId = Math.random().toString(36).substring(2, 9);
-    let pastedFile = null; // Variable global para guardar la imagen del portapapeles
+    let pastedFile = null;
 
-    // Feedback de archivo seleccionado por botón
+    // --- LÓGICA DE TEMA OSCURO ---
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+
+    themeToggle.addEventListener('click', () => {
+        const theme = document.documentElement.getAttribute('data-theme');
+        if (theme === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'light');
+            localStorage.setItem('theme', 'light');
+            themeToggle.textContent = '🌙';
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            themeToggle.textContent = '☀️';
+        }
+    });
+    // -----------------------------
+
     fileInput.addEventListener('change', () => {
         if(fileInput.files.length > 0) {
-            pastedFile = null; // Priorizar el del explorador de archivos
+            pastedFile = null;
             filePreview.style.display = 'block';
         }
     });
 
-    // NUEVO: PEGAR IMÁGENES DESDE EL PORTAPAPELES (Ctrl + V)
     document.addEventListener('paste', (e) => {
         const items = (e.clipboardData || e.originalEvent.clipboardData).items;
         for (let index in items) {
             const item = items[index];
             if (item.kind === 'file' && item.type.startsWith('image/')) {
                 pastedFile = item.getAsFile();
-                fileInput.value = ""; // Limpiar el input de archivo físico si tenía algo
+                fileInput.value = "";
                 filePreview.style.display = 'block';
                 filePreview.textContent = `📸 Imagen detectada del portapapeles: ${pastedFile.name || 'captura.png'}`;
             }
         }
     });
 
-    // NUEVO: COMPORTAMIENTO DE ENTER Y CTRL + ENTER
     msgInput.addEventListener('keydown', (e) => {
-        // Si presiona Enter SIN la tecla Ctrl o Shift...
         if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-            e.preventDefault(); // Evita que agregue el salto de línea por defecto
-            form.requestSubmit(); // Envía el formulario automáticamente
-        } 
-        // Si presiona Ctrl + Enter o Shift + Enter...
-        else if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
-            // El comportamiento nativo del textarea ya agrega el salto de línea,
-            // pero autoajustamos el tamaño visual para que el usuario vea que creció.
+            e.preventDefault();
+            form.requestSubmit();
+        } else if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
             setTimeout(() => {
                 msgInput.style.height = 'auto';
                 msgInput.style.height = msgInput.scrollHeight + 'px';
@@ -102,7 +150,6 @@
         }
     });
 
-    // Cargar mensajes existentes
     async function loadInitialMessages() {
         try {
             const { data, error } = await supabaseClient
@@ -124,7 +171,6 @@
         }
     }
 
-    // Escuchar en tiempo real
     supabaseClient
         .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
@@ -152,11 +198,9 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Enviar mensaje y foto
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const text = msgInput.value.trim();
-        // Toma el archivo del input tradicional o el guardado del portapapeles
         const file = fileInput.files[0] || pastedFile;
 
         if (!text && !file) return;
@@ -186,12 +230,11 @@
 
             if (insertError) throw insertError;
 
-            // Resetear todo tras el envío con éxito
             form.reset();
             pastedFile = null;
             filePreview.style.display = 'none';
             filePreview.textContent = '📸 Imagen lista (desde archivo o portapapeles)';
-            msgInput.style.height = '20px'; // Resetear altura del textarea
+            msgInput.style.height = '20px';
         } catch (error) {
             console.error(error);
             alert(`Error al enviar: ${error.message}`);
