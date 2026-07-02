@@ -19,6 +19,8 @@
         .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; }
         .btn-submit:disabled { background: #ccc; }
         .preview-text { font-size: 11px; color: #555; display: none; background: #fff; padding: 5px; border-radius: 5px; text-align: center; }
+        .log-error { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 10px; border: 1px solid #fca5a5; }
+        .log-info { background: #e0f2fe; color: #0369a1; padding: 8px; border-radius: 6px; font-size: 0.85em; text-align: center; margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -42,11 +44,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-    // 1. CREDENCIALES DE SUPABASE CONECTADAS
+    // 1. CREDENCIALES DE SUPABASE
     const SUPABASE_URL = "https://xftmgzrkqhuzoymvkoqp.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdG1nenJrcWh1em95bXZrb3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDU4NDcsImV4cCI6MjA5ODU4MTg0N30.CytrKW-eWdFwRxS5DHL432B1Fa5sklewtd_DpMLWs0Q";
 
-    // Modificado para evitar el SyntaxError de identificador duplicado
+    console.log("[LOG] Inicializando cliente de Supabase...");
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const messagesContainer = document.getElementById('chatMessages');
@@ -55,38 +57,58 @@
     const filePreview = document.getElementById('filePreview');
     const sendBtn = document.getElementById('sendBtn');
 
-    // ID aleatorio para identificar mis mensajes en esta sesión
     const mySessionId = Math.random().toString(36).substring(2, 9);
 
-    // Mostrar feedback de archivo
     fileInput.addEventListener('change', () => {
         if(fileInput.files.length > 0) filePreview.style.display = 'block';
     });
 
     // 2. CARGAR MENSAJES EXISTENTES AL INICIAR
     async function loadInitialMessages() {
-        const { data, error } = await supabaseClient
-            .from('messages')
-            .select('*')
-            .order('created_at', { ascending: true });
+        console.log("[LOG] Ejecutando consulta de lectura en la tabla 'messages'...");
+        try {
+            const { data, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: true });
 
-        if (error) console.error("Error cargando mensajes:", error);
-        
-        messagesContainer.innerHTML = ''; // Limpiar cargando
-        if (data) {
-            data.forEach(msg => renderMessage(msg));
+            if (error) {
+                throw error;
+            }
+            
+            console.log("[LOG] Datos recibidos con éxito de Supabase:", data);
+            messagesContainer.innerHTML = ''; // Limpiar el cargando
+            
+            if (data && data.length > 0) {
+                data.forEach(msg => renderMessage(msg));
+            } else {
+                messagesContainer.innerHTML = '<div class="log-info">No hay mensajes anteriores. ¡Escribe el primero!</div>';
+            }
+        } catch (error) {
+            console.error("[ERROR CRÍTICO LECTURA]:", error);
+            // Mostrar el error directamente dentro del contenedor del chat
+            messagesContainer.innerHTML = `
+                <div class="log-error">
+                    <strong>Error al cargar historial:</strong><br>
+                    Código: ${error.code || 'Desconocido'}<br>
+                    Mensaje: ${error.message || 'Error de red o RLS activo'}
+                </div>
+            `;
         }
     }
 
     // 3. ESCUCHAR NUEVOS MENSAJES EN TIEMPO REAL
-    supabaseClient
+    console.log("[LOG] Conectando canal de tiempo real (WebSockets)...");
+    const channel = supabaseClient
         .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+            console.log("[LOG] ¡Nuevo mensaje recibido en tiempo real!", payload.new);
             renderMessage(payload.new);
         })
-        .subscribe();
+        .subscribe((status) => {
+            console.log(`[LOG] Estado de la conexión en tiempo real: ${status}`);
+        });
 
-    // Dibujar el mensaje en la pantalla
     function renderMessage(data) {
         const msgDiv = document.createElement('div');
         msgDiv.className = `msg ${data.sender_id === mySessionId ? 'mine' : ''}`;
@@ -119,8 +141,8 @@
         let imageUrl = null;
 
         try {
-            // Si hay un archivo, subirlo al Storage Bucket llamado "chat-images"
             if (file) {
+                console.log("[LOG] Intentando subir archivo al storage 'chat-images'...", file.name);
                 const fileName = `${Date.now()}_${file.name}`;
                 const { data: uploadData, error: uploadError } = await supabaseClient.storage
                     .from('chat-images')
@@ -128,7 +150,7 @@
 
                 if (uploadError) throw uploadError;
 
-                // Obtener la URL pública de la imagen
+                console.log("[LOG] Archivo subido con éxito. Obteniendo URL pública...");
                 const { data: urlData } = supabaseClient.storage
                     .from('chat-images')
                     .getPublicUrl(fileName);
@@ -136,18 +158,19 @@
                 imageUrl = urlData.publicUrl;
             }
 
-            // Insertar fila en la tabla "messages"
+            console.log("[LOG] Insertando nuevo mensaje en la tabla...", { text, imageUrl });
             const { error: insertError } = await supabaseClient
                 .from('messages')
                 .insert([{ text: text, image_url: imageUrl, sender_id: mySessionId }]);
 
             if (insertError) throw insertError;
 
+            console.log("[LOG] Mensaje enviado correctamente.");
             form.reset();
             filePreview.style.display = 'none';
         } catch (error) {
-            console.error("Error al enviar:", error);
-            alert("No se pudo enviar el mensaje.");
+            console.error("[ERROR CRÍTICO ENVÍO]:", error);
+            alert(`Error al enviar: ${error.message || 'Revisa la consola'}`);
         } finally {
             sendBtn.disabled = false;
         }
