@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Permanente con Supabase</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #efeae2; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .chat-container { width: 100%; max-width: 450px; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 85vh; overflow: hidden; }
+        .chat-header { background: #1c1c1c; color: #3ecf8e; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; border-bottom: 2px solid #3ecf8e; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background-color: #f4f4f5; }
+        .msg { background: white; padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; }
+        .msg.mine { background: #3ecf8e; color: white; align-self: flex-end; }
+        .msg img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
+        .chat-form { display: flex; padding: 10px; background: #f0f0f0; gap: 10px; align-items: center; }
+        .chat-form input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 20px; outline: none; font-size: 1em; }
+        .file-label { cursor: pointer; font-size: 22px; padding: 5px; }
+        .file-label input { display: none; }
+        .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; }
+        .btn-submit:disabled { background: #ccc; }
+        .preview-text { font-size: 11px; color: #555; display: none; background: #fff; padding: 5px; border-radius: 5px; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-header">Supabase Chat - GH Pages</div>
+    <div class="preview-text" id="filePreview">📸 Imagen lista para enviar</div>
+    <div class="chat-messages" id="chatMessages">Cargando historial...</div>
+    
+    <form class="chat-form" id="chatForm">
+        <label class="file-label">
+            📎
+            <input type="file" id="fileInput" accept="image/*">
+        </label>
+        <input type="text" id="msgInput" placeholder="Escribe un mensaje..." autocomplete="off">
+        <button type="submit" class="btn-submit" id="sendBtn">→</button>
+    </form>
+</div>
+
+<!-- Cargar el SDK de Supabase desde CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+    // 1. REEMPLAZA CON TUS CREDENCIALES DE SUPABASE
+    const SUPABASE_URL = "https://xftmgzrkqhuzoymvkoqp.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdG1nenJrcWh1em95bXZrb3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDU4NDcsImV4cCI6MjA5ODU4MTg0N30.CytrKW-eWdFwRxS5DHL432B1Fa5sklewtd_DpMLWs0Q";
+
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const messagesContainer = document.getElementById('chatMessages');
+    const form = document.getElementById('chatForm');
+    const fileInput = document.getElementById('fileInput');
+    const filePreview = document.getElementById('filePreview');
+    const sendBtn = document.getElementById('sendBtn');
+
+    // ID aleatorio para identificar mis mensajes en esta sesión
+    const mySessionId = Math.random().toString(36).substring(2, 9);
+
+    // Mostrar feedback de archivo
+    fileInput.addEventListener('change', () => {
+        if(fileInput.files.length > 0) filePreview.style.display = 'block';
+    });
+
+    // 2. CARGAR MENSAJES EXISTENTES AL INICIAR
+    async function loadInitialMessages() {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        if (error) console.error("Error cargando mensajes:", error);
+        
+        messagesContainer.innerHTML = ''; // Limpiar cargando
+        if (data) {
+            data.forEach(msg => renderMessage(msg));
+        }
+    }
+
+    // 3. ESCUCHAR NUEVOS MENSAJES EN TIEMPO REAL
+    supabase
+        .channel('public:messages')
+        .on('postgres_changes', { event: 'INSERT', scheme: 'public', table: 'messages' }, payload => {
+            renderMessage(payload.new);
+        })
+        .subscribe();
+
+    // Dibujar el mensaje en la pantalla
+    function renderMessage(data) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `msg ${data.sender_id === mySessionId ? 'mine' : ''}`;
+        
+        if(data.text) {
+            const textSpan = document.createElement('span');
+            textSpan.textContent = data.text;
+            msgDiv.appendChild(textSpan);
+        }
+
+        if (data.image_url) {
+            const img = document.createElement('img');
+            img.src = data.image_url;
+            msgDiv.appendChild(img);
+        }
+
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // 4. ENVIAR MENSAJE Y FOTO
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const text = document.getElementById('msgInput').value.trim();
+        const file = fileInput.files[0];
+
+        if (!text && !file) return;
+
+        sendBtn.disabled = true;
+        let imageUrl = null;
+
+        try {
+            // Si hay un archivo, subirlo al Storage Bucket llamado "chat-images"
+            if (file) {
+                const fileName = `${Date.now()}_${file.name}`;
+                const { data: uploadData, error: uploadError } = await supabase.storage
+                    .from('chat-images')
+                    .upload(fileName, file);
+
+                if (uploadError) throw uploadError;
+
+                // Obtener la URL pública de la imagen
+                const { data: urlData } = supabase.storage
+                    .from('chat-images')
+                    .getPublicUrl(fileName);
+                
+                imageUrl = urlData.publicUrl;
+            }
+
+            // Insertar fila en la tabla "messages"
+            const { error: insertError } = await supabase
+                .from('messages')
+                .insert([{ text: text, image_url: imageUrl, sender_id: mySessionId }]);
+
+            if (insertError) throw insertError;
+
+            form.reset();
+            filePreview.style.display = 'none';
+        } catch (error) {
+            console.error("Error al enviar:", error);
+            alert("No se pudo enviar el mensaje.");
+        } finally {
+            sendBtn.disabled = false;
+        }
+    });
+
+    // Inicializar la carga
+    loadInitialMessages();
+</script>
+
+</body>
+</html>
