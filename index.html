@@ -9,14 +9,17 @@
         .chat-container { width: 100%; max-width: 450px; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 85vh; overflow: hidden; }
         .chat-header { background: #1c1c1c; color: #3ecf8e; padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; border-bottom: 2px solid #3ecf8e; }
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background-color: #f4f4f5; }
-        .msg { background: white; padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; }
+        .msg { background: white; padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; white-space: pre-wrap; }
         .msg.mine { background: #3ecf8e; color: white; align-self: flex-end; }
         .msg img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
-        .chat-form { display: flex; padding: 10px; background: #f0f0f0; gap: 10px; align-items: center; }
-        .chat-form input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 20px; outline: none; font-size: 1em; }
+        .chat-form { display: flex; padding: 10px; background: #f0f0f0; gap: 10px; align-items: center; position: relative; }
+        
+        /* Cambiado a textarea con scroll interno sutil */
+        .chat-form textarea { flex: 1; padding: 10px 12px; border: none; border-radius: 15px; outline: none; font-size: 1em; resize: none; font-family: inherit; height: 20px; max-height: 80px; }
+        
         .file-label { cursor: pointer; font-size: 22px; padding: 5px; }
         .file-label input { display: none; }
-        .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; }
+        .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; align-self: flex-end; }
         .btn-submit:disabled { background: #ccc; }
         .preview-text { font-size: 11px; color: #555; display: none; background: #fff; padding: 5px; border-radius: 5px; text-align: center; }
         .log-error { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 10px; border: 1px solid #fca5a5; }
@@ -27,7 +30,7 @@
 
 <div class="chat-container">
     <div class="chat-header">Supabase Chat - GH Pages</div>
-    <div class="preview-text" id="filePreview">📸 Imagen lista para enviar</div>
+    <div class="preview-text" id="filePreview">📸 Imagen lista (desde archivo o portapapeles)</div>
     <div class="chat-messages" id="chatMessages">Cargando historial...</div>
     
     <form class="chat-form" id="chatForm">
@@ -35,79 +38,99 @@
             📎
             <input type="file" id="fileInput" accept="image/*">
         </label>
-        <input type="text" id="msgInput" placeholder="Escribe un mensaje..." autocomplete="off">
+        <!-- Cambiado a textarea para permitir saltos de línea -->
+        <textarea id="msgInput" placeholder="Escribe un mensaje... (Enter envía, Ctrl+Enter salta línea)" autocomplete="off"></textarea>
         <button type="submit" class="btn-submit" id="sendBtn">→</button>
     </form>
 </div>
 
-<!-- Cargar el SDK de Supabase desde CDN -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-    // 1. CREDENCIALES DE SUPABASE
     const SUPABASE_URL = "https://xftmgzrkqhuzoymvkoqp.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdG1nenJrcWh1em95bXZrb3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDU4NDcsImV4cCI6MjA5ODU4MTg0N30.CytrKW-eWdFwRxS5DHL432B1Fa5sklewtd_DpMLWs0Q";
 
-    console.log("[LOG] Inicializando cliente de Supabase...");
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const messagesContainer = document.getElementById('chatMessages');
     const form = document.getElementById('chatForm');
     const fileInput = document.getElementById('fileInput');
+    const msgInput = document.getElementById('msgInput');
     const filePreview = document.getElementById('filePreview');
     const sendBtn = document.getElementById('sendBtn');
 
     const mySessionId = Math.random().toString(36).substring(2, 9);
+    let pastedFile = null; // Variable global para guardar la imagen del portapapeles
 
+    // Feedback de archivo seleccionado por botón
     fileInput.addEventListener('change', () => {
-        if(fileInput.files.length > 0) filePreview.style.display = 'block';
+        if(fileInput.files.length > 0) {
+            pastedFile = null; // Priorizar el del explorador de archivos
+            filePreview.style.display = 'block';
+        }
     });
 
-    // 2. CARGAR MENSAJES EXISTENTES AL INICIAR
+    // NUEVO: PEGAR IMÁGENES DESDE EL PORTAPAPELES (Ctrl + V)
+    document.addEventListener('paste', (e) => {
+        const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (let index in items) {
+            const item = items[index];
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                pastedFile = item.getAsFile();
+                fileInput.value = ""; // Limpiar el input de archivo físico si tenía algo
+                filePreview.style.display = 'block';
+                filePreview.textContent = `📸 Imagen detectada del portapapeles: ${pastedFile.name || 'captura.png'}`;
+            }
+        }
+    });
+
+    // NUEVO: COMPORTAMIENTO DE ENTER Y CTRL + ENTER
+    msgInput.addEventListener('keydown', (e) => {
+        // Si presiona Enter SIN la tecla Ctrl o Shift...
+        if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+            e.preventDefault(); // Evita que agregue el salto de línea por defecto
+            form.requestSubmit(); // Envía el formulario automáticamente
+        } 
+        // Si presiona Ctrl + Enter o Shift + Enter...
+        else if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
+            // El comportamiento nativo del textarea ya agrega el salto de línea,
+            // pero autoajustamos el tamaño visual para que el usuario vea que creció.
+            setTimeout(() => {
+                msgInput.style.height = 'auto';
+                msgInput.style.height = msgInput.scrollHeight + 'px';
+            }, 10);
+        }
+    });
+
+    // Cargar mensajes existentes
     async function loadInitialMessages() {
-        console.log("[LOG] Ejecutando consulta de lectura en la tabla 'messages'...");
         try {
             const { data, error } = await supabaseClient
                 .from('messages')
                 .select('*')
                 .order('created_at', { ascending: true });
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
             
-            console.log("[LOG] Datos recibidos con éxito de Supabase:", data);
-            messagesContainer.innerHTML = ''; // Limpiar el cargando
-            
+            messagesContainer.innerHTML = '';
             if (data && data.length > 0) {
                 data.forEach(msg => renderMessage(msg));
             } else {
                 messagesContainer.innerHTML = '<div class="log-info">No hay mensajes anteriores. ¡Escribe el primero!</div>';
             }
         } catch (error) {
-            console.error("[ERROR CRÍTICO LECTURA]:", error);
-            // Mostrar el error directamente dentro del contenedor del chat
-            messagesContainer.innerHTML = `
-                <div class="log-error">
-                    <strong>Error al cargar historial:</strong><br>
-                    Código: ${error.code || 'Desconocido'}<br>
-                    Mensaje: ${error.message || 'Error de red o RLS activo'}
-                </div>
-            `;
+            console.error(error);
+            messagesContainer.innerHTML = `<div class="log-error"><strong>Error al cargar historial:</strong><br>${error.message}</div>`;
         }
     }
 
-    // 3. ESCUCHAR NUEVOS MENSAJES EN TIEMPO REAL
-    console.log("[LOG] Conectando canal de tiempo real (WebSockets)...");
-    const channel = supabaseClient
+    // Escuchar en tiempo real
+    supabaseClient
         .channel('public:messages')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            console.log("[LOG] ¡Nuevo mensaje recibido en tiempo real!", payload.new);
             renderMessage(payload.new);
         })
-        .subscribe((status) => {
-            console.log(`[LOG] Estado de la conexión en tiempo real: ${status}`);
-        });
+        .subscribe();
 
     function renderMessage(data) {
         const msgDiv = document.createElement('div');
@@ -129,11 +152,12 @@
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // 4. ENVIAR MENSAJE Y FOTO
+    // Enviar mensaje y foto
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const text = document.getElementById('msgInput').value.trim();
-        const file = fileInput.files[0];
+        const text = msgInput.value.trim();
+        // Toma el archivo del input tradicional o el guardado del portapapeles
+        const file = fileInput.files[0] || pastedFile;
 
         if (!text && !file) return;
 
@@ -142,15 +166,13 @@
 
         try {
             if (file) {
-                console.log("[LOG] Intentando subir archivo al storage 'chat-images'...", file.name);
-                const fileName = `${Date.now()}_${file.name}`;
+                const fileName = `${Date.now()}_${file.name || 'pasted_image.png'}`;
                 const { data: uploadData, error: uploadError } = await supabaseClient.storage
                     .from('chat-images')
                     .upload(fileName, file);
 
                 if (uploadError) throw uploadError;
 
-                console.log("[LOG] Archivo subido con éxito. Obteniendo URL pública...");
                 const { data: urlData } = supabaseClient.storage
                     .from('chat-images')
                     .getPublicUrl(fileName);
@@ -158,25 +180,26 @@
                 imageUrl = urlData.publicUrl;
             }
 
-            console.log("[LOG] Insertando nuevo mensaje en la tabla...", { text, imageUrl });
             const { error: insertError } = await supabaseClient
                 .from('messages')
                 .insert([{ text: text, image_url: imageUrl, sender_id: mySessionId }]);
 
             if (insertError) throw insertError;
 
-            console.log("[LOG] Mensaje enviado correctamente.");
+            // Resetear todo tras el envío con éxito
             form.reset();
+            pastedFile = null;
             filePreview.style.display = 'none';
+            filePreview.textContent = '📸 Imagen lista (desde archivo o portapapeles)';
+            msgInput.style.height = '20px'; // Resetear altura del textarea
         } catch (error) {
-            console.error("[ERROR CRÍTICO ENVÍO]:", error);
-            alert(`Error al enviar: ${error.message || 'Revisa la consola'}`);
+            console.error(error);
+            alert(`Error al enviar: ${error.message}`);
         } finally {
             sendBtn.disabled = false;
         }
     });
 
-    // Inicializar la carga
     loadInitialMessages();
 </script>
 
