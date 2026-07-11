@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Permanente con Supabase</title>
+    <title>Chat Permanente Pro - Supabase</title>
     <style>
-        /* Variables de color para manejar ambos temas de forma limpia */
         :root {
             --bg-body: #efeae2;
             --bg-container: #fff;
@@ -39,43 +38,56 @@
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: var(--bg-body); margin: 0; padding: 20px; display: flex; justify-content: center; transition: background 0.3s; }
         .chat-container { width: 100%; max-width: 450px; background: var(--bg-container); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); display: flex; flex-direction: column; height: 85vh; overflow: hidden; transition: background 0.3s; }
         
-        /* Cabecera con distribución para el botón de tema */
         .chat-header { background: var(--bg-header); color: var(--text-header); padding: 15px; text-align: center; font-weight: bold; font-size: 1.1em; border-bottom: 2px solid #3ecf8e; display: flex; justify-content: space-between; align-items: center; transition: background 0.3s; }
-        .theme-toggle { background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 0 5px; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        .btn-header { background: none; border: none; font-size: 1.1em; cursor: pointer; padding: 5px; color: inherit; }
 
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background-color: var(--bg-messages); transition: background 0.3s; }
-        .msg { background: var(--bg-msg-other); color: var(--text-msg-other); padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; white-space: pre-wrap; transition: background 0.2s, color 0.2s; }
+        .msg { background: var(--bg-msg-other); color: var(--text-msg-other); padding: 10px 14px; border-radius: 8px; align-self: flex-start; max-width: 75%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); word-break: break-word; font-size: 0.95em; white-space: pre-wrap; transition: background 0.2s, color 0.2s; position: relative; }
         .msg.mine { background: var(--bg-msg-mine); color: var(--text-msg-mine); align-self: flex-end; }
-        .msg img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
         
+        /* Estilos multimedia dentro del chat */
+        .msg img, .msg video { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
+        .msg .file-attachment { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 6px; color: inherit; text-decoration: none; font-size: 0.9em; }
+        
+        /* Meta-información: Hora y Botón de borrar */
+        .msg-meta { display: flex; justify-content: flex-end; align-items: center; gap: 6px; font-size: 0.72em; color: #888; margin-top: 4px; }
+        .msg.mine .msg-meta { color: rgba(255,255,255,0.7); }
+        .btn-delete { background: none; border: none; color: #ef4444; cursor: pointer; padding: 0; font-size: 1.1em; display: none; }
+        .admin-mode .btn-delete { display: inline; }
+
         .chat-form { display: flex; padding: 10px; background: var(--bg-form); gap: 10px; align-items: center; position: relative; transition: background 0.3s; }
         .chat-form textarea { flex: 1; padding: 10px 12px; border: none; border-radius: 15px; outline: none; font-size: 1em; resize: none; font-family: inherit; height: 20px; max-height: 80px; background: var(--bg-input); color: var(--text-input); transition: background 0.3s, color 0.3s; }
         
         .file-label { cursor: pointer; font-size: 22px; padding: 5px; }
+        /* Modificado para permitir múltiples archivos en el input nativo */
         .file-label input { display: none; }
+        
         .btn-submit { background: #3ecf8e; color: white; border: none; padding: 10px 16px; border-radius: 50%; cursor: pointer; font-weight: bold; font-size: 1.1em; align-self: flex-end; }
         .btn-submit:disabled { background: #ccc; }
-        .preview-text { font-size: 11px; color: #555; display: none; background: var(--bg-container); color: var(--text-msg-other); padding: 5px; border-radius: 5px; text-align: center; }
+        .preview-text { font-size: 11px; color: #555; display: none; background: var(--bg-container); color: var(--text-msg-other); padding: 5px; border-radius: 5px; text-align: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
         .log-error { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 10px; border: 1px solid #fca5a5; }
-        .log-info { background: #e0f2fe; color: #0369a1; padding: 8px; border-radius: 6px; font-size: 0.85em; text-align: center; margin: 5px 0; }
     </style>
 </head>
 <body>
 
-<div class="chat-container">
+<div class="chat-container" id="chatContainer">
     <div class="chat-header">
-        <span>Supabase Chat</span>
-        <button class="theme-toggle" id="themeToggle" title="Cambiar tema">🌙</button>
+        <span>Supabase Chat Pro</span>
+        <div class="header-actions">
+            <button class="btn-header" id="adminToggle" title="Login Admin">🔑</button>
+            <button class="btn-header" id="themeToggle" title="Cambiar tema">🌙</button>
+        </div>
     </div>
-    <div class="preview-text" id="filePreview">📸 Imagen lista (desde archivo o portapapeles)</div>
+    <div class="preview-text" id="filePreview">Archivos seleccionados listos para enviar</div>
     <div class="chat-messages" id="chatMessages">Cargando historial...</div>
     
     <form class="chat-form" id="chatForm">
         <label class="file-label">
             📎
-            <input type="file" id="fileInput" accept="image/*">
+            <input type="file" id="fileInput" accept="image/*,video/*,application/*" multiple>
         </label>
-        <textarea id="msgInput" placeholder="Escribe un mensaje..." autocomplete="off"></textarea>
+        <textarea id="msgInput" placeholder="Escribe un mensaje... (Enter envía, Ctrl+Enter nueva línea)" autocomplete="off"></textarea>
         <button type="submit" class="btn-submit" id="sendBtn">→</button>
     </form>
 </div>
@@ -88,6 +100,7 @@
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    const chatContainer = document.getElementById('chatContainer');
     const messagesContainer = document.getElementById('chatMessages');
     const form = document.getElementById('chatForm');
     const fileInput = document.getElementById('fileInput');
@@ -95,49 +108,85 @@
     const filePreview = document.getElementById('filePreview');
     const sendBtn = document.getElementById('sendBtn');
     const themeToggle = document.getElementById('themeToggle');
+    const adminToggle = document.getElementById('adminToggle');
 
     const mySessionId = Math.random().toString(36).substring(2, 9);
-    let pastedFile = null;
+    let queueFiles = []; // Array global para almacenar múltiples archivos (explorador o portapapeles)
+    let isAdmin = false;
 
-    // --- LÓGICA DE TEMA OSCURO ---
+    // --- LOG DE TEMA OSCURO ---
     const currentTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', currentTheme);
     themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 
     themeToggle.addEventListener('click', () => {
         const theme = document.documentElement.getAttribute('data-theme');
-        if (theme === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'light');
-            localStorage.setItem('theme', 'light');
-            themeToggle.textContent = '🌙';
+        const nextTheme = theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', nextTheme);
+        localStorage.setItem('theme', nextTheme);
+        themeToggle.textContent = nextTheme === 'dark' ? '☀️' : '🌙';
+    });
+
+    // --- LOGIN SIMPLE DE ADMINISTRADOR ---
+    adminToggle.addEventListener('click', () => {
+        if (!isAdmin) {
+            const password = prompt("Introduce la clave de Administrador:");
+            // Puedes cambiar "admin123" por la contraseña que tú quieras
+            if (password === "admin123") {
+                isAdmin = true;
+                chatContainer.classList.add('admin-mode');
+                adminToggle.textContent = "🔓";
+                alert("Modo Administrador activado. Ya puedes borrar mensajes de la vista.");
+            } else if (password !== null) {
+                alert("Contraseña incorrecta.");
+            }
         } else {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            localStorage.setItem('theme', 'dark');
-            themeToggle.textContent = '☀️';
+            isAdmin = false;
+            chatContainer.classList.remove('admin-mode');
+            adminToggle.textContent = "🔑";
+            alert("Modo Administrador desactivado.");
         }
     });
-    // -----------------------------
 
-    fileInput.addEventListener('change', () => {
-        if(fileInput.files.length > 0) {
-            pastedFile = null;
+    // Actualizar texto del preview de archivos
+    function updateFilePreview() {
+        if (queueFiles.length > 0) {
             filePreview.style.display = 'block';
+            filePreview.textContent = `📎 ${queueFiles.length} archivo(s) listo(s): ` + queueFiles.map(f => f.name || 'archivo').join(', ');
+        } else {
+            filePreview.style.display = 'none';
+        }
+    }
+
+    // Captura de archivos desde el botón explorador (Múltiples)
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            queueFiles = Array.from(fileInput.files);
+            updateFilePreview();
         }
     });
 
+    // Captura extendida desde Portapapeles (Ctrl + V) - Soporta acumular múltiples pegados
     document.addEventListener('paste', (e) => {
         const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        let added = false;
         for (let index in items) {
             const item = items[index];
-            if (item.kind === 'file' && item.type.startsWith('image/')) {
-                pastedFile = item.getAsFile();
-                fileInput.value = "";
-                filePreview.style.display = 'block';
-                filePreview.textContent = `📸 Imagen detectada del portapapeles: ${pastedFile.name || 'captura.png'}`;
+            if (item.kind === 'file') {
+                const file = item.getAsFile();
+                if (file) {
+                    queueFiles.push(file);
+                    added = true;
+                }
             }
+        }
+        if (added) {
+            fileInput.value = ""; // Limpiar input físico
+            updateFilePreview();
         }
     });
 
+    // Manejo de teclado (Enter envía, Ctrl+Enter salta línea) [cite: 147]
     msgInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
             e.preventDefault();
@@ -150,11 +199,13 @@
         }
     });
 
+    // Cargar historial inicial filtrando mensajes con borrado lógico (deleted = false)
     async function loadInitialMessages() {
         try {
             const { data, error } = await supabaseClient
                 .from('messages')
                 .select('*')
+                .eq('deleted', false) // FILTRO CRÍTICO: No trae los borrados lógicos
                 .order('created_at', { ascending: true });
 
             if (error) throw error;
@@ -163,7 +214,7 @@
             if (data && data.length > 0) {
                 data.forEach(msg => renderMessage(msg));
             } else {
-                messagesContainer.innerHTML = '<div class="log-info">No hay mensajes anteriores. ¡Escribe el primero!</div>';
+                messagesContainer.innerHTML = '<div style="text-align:center;color:#888;font-size:0.9em;padding:10px;">No hay mensajes.</div>';
             }
         } catch (error) {
             console.error(error);
@@ -171,73 +222,168 @@
         }
     }
 
+    // Escuchar tiempo real en Supabase para inserciones y actualizaciones (Borrado Lógico)
     supabaseClient
         .channel('public:messages')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-            renderMessage(payload.new);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, payload => {
+            if (payload.eventType === 'INSERT' && !payload.new.deleted) {
+                renderMessage(payload.new);
+            } else if (payload.eventType === 'UPDATE') {
+                // Si un mensaje se marca como borrado, lo removemos del HTML visualmente
+                if (payload.new.deleted) {
+                    const existingMsgNode = document.getElementById(`msg-${payload.new.id}`);
+                    if (existingMsgNode) existingMsgNode.remove();
+                }
+            }
         })
         .subscribe();
 
+    // Renderizar mensajes con soporte Multimedia, Formato de Hora y Botón Admin
     function renderMessage(data) {
+        // Evitar duplicados visuales si ya existe en el DOM
+        if (document.getElementById(`msg-${data.id}`)) return;
+
         const msgDiv = document.createElement('div');
+        msgDiv.id = `msg-${data.id}`;
         msgDiv.className = `msg ${data.sender_id === mySessionId ? 'mine' : ''}`;
         
-        if(data.text) {
+        // Texto del mensaje
+        if (data.text) {
             const textSpan = document.createElement('span');
             textSpan.textContent = data.text;
             msgDiv.appendChild(textSpan);
         }
 
+        // Renderizado Dinámico de Archivo según Tipo Mime
         if (data.image_url) {
-            const img = document.createElement('img');
-            img.src = data.image_url;
-            msgDiv.appendChild(img);
+            const url = data.image_url;
+            const isImage = url.match(/\.(jpeg|jpg|gif|png|webp)/i) || url.includes('chat-images'); // fallback general
+            const isVideo = url.match(/\.(mp4|webm|ogg|mov)/i);
+
+            if (isVideo) {
+                const video = document.createElement('video');
+                video.src = url;
+                video.controls = true;
+                msgDiv.appendChild(video);
+            } else if (isImage && !url.includes('_file_')) { 
+                // Enlace cliqueable para abrir imagen en grande 
+                const imgLink = document.createElement('a');
+                imgLink.href = url;
+                imgLink.target = '_blank'; [cite: 160]
+                imgLink.style.cursor = 'zoom-in';
+
+                const img = document.createElement('img');
+                img.src = url;
+                imgLink.appendChild(img);
+                msgDiv.appendChild(imgLink);
+            } else {
+                // Cualquier otro tipo de archivo (PDF, ZIP, Word, etc.) se renderiza como descarga
+                const fileLink = document.createElement('a');
+                fileLink.href = url;
+                fileLink.target = '_blank';
+                fileLink.className = 'file-attachment';
+                fileLink.innerHTML = `📁 Descargar Archivo Adjunto`;
+                msgDiv.appendChild(fileLink);
+            }
         }
 
+        // Formatear la Marca de Tiempo (Hora del mensaje)
+        const msgMeta = document.createElement('div');
+        msgMeta.className = 'msg-meta';
+        
+        const timeString = data.created_at 
+            ? new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.textContent = timeString;
+        msgMeta.appendChild(timeSpan);
+
+        // Botón de borrado lógico (Solo interactivo para el Administrador)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn-delete';
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.title = 'Borrar mensaje de la vista';
+        deleteBtn.onclick = () => deleteMessageLogically(data.id);
+        msgMeta.appendChild(deleteBtn);
+
+        msgDiv.appendChild(msgMeta);
         messagesContainer.appendChild(msgDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    // FUNCIÓN DE BORRADO LÓGICO: Modifica el campo en la base de datos sin destruir la fila
+    async function deleteMessageLogically(msgId) {
+        if (!confirm("¿Seguro que deseas ocultar este mensaje del chat? Se mantendrá guardado internamente.")) return;
+        try {
+            const { error } = await supabaseClient
+                .from('messages')
+                .update({ deleted: true }) // Actualiza la bandera en Supabase
+                .eq('id', msgId);
+
+            if (error) throw error;
+        } catch (error) {
+            alert(`Error al borrar: ${error.message}`);
+        }
+    }
+
+    // Enviar mensaje gestionando Múltiples Archivos en cola consecutivamente
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const text = msgInput.value.trim();
-        const file = fileInput.files[0] || pastedFile;
-
-        if (!text && !file) return;
+        
+        if (!text && queueFiles.length === 0) return;
 
         sendBtn.disabled = true;
-        let imageUrl = null;
 
         try {
-            if (file) {
-                const fileName = `${Date.now()}_${file.name || 'pasted_image.png'}`;
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
-                    .from('chat-images')
-                    .upload(fileName, file);
+            // Si no hay archivos en cola, enviamos solo el texto clásico
+            if (queueFiles.length === 0) {
+                const { error } = await supabaseClient
+                    .from('messages')
+                    .insert([{ text: text, sender_id: mySessionId }]);
+                if (error) throw error;
+            } 
+            // Si hay múltiples archivos, los subimos uno a uno y creamos un registro para cada uno
+            else {
+                for (let i = 0; i < queueFiles.length; i++) {
+                    const file = queueFiles[i];
+                    
+                    // Distinguimos nombres para evitar colisiones
+                    const prefix = file.type.startsWith('video/') ? 'video_' : file.type.startsWith('image/') ? 'img_' : 'file_';
+                    const fileName = `${Date.now()}_${prefix}${file.name || 'archivo'}`;
+                    
+                    const { data: uploadData, error: uploadError } = await supabaseClient.storage
+                        .from('chat-images')
+                        .upload(fileName, file);
 
-                if (uploadError) throw uploadError;
+                    if (uploadError) throw uploadError;
 
-                const { data: urlData } = supabaseClient.storage
-                    .from('chat-images')
-                    .getPublicUrl(fileName);
-                
-                imageUrl = urlData.publicUrl;
+                    const { data: urlData } = supabaseClient.storage
+                        .from('chat-images')
+                        .getPublicUrl(fileName);
+                    
+                    const imageUrl = urlData.publicUrl;
+
+                    // El texto del cuadro se envía en el primer archivo, los siguientes van solo con su adjunto
+                    const currentText = (i === 0) ? text : '';
+
+                    const { error: insertError } = await supabaseClient
+                        .from('messages')
+                        .insert([{ text: currentText, image_url: imageUrl, sender_id: mySessionId }]);
+
+                    if (insertError) throw insertError;
+                }
             }
 
-            const { error: insertError } = await supabaseClient
-                .from('messages')
-                .insert([{ text: text, image_url: imageUrl, sender_id: mySessionId }]);
-
-            if (insertError) throw insertError;
-
+            // Reseteo de estados globales tras envío exitoso
             form.reset();
-            pastedFile = null;
+            queueFiles = [];
             filePreview.style.display = 'none';
-            filePreview.textContent = '📸 Imagen lista (desde archivo o portapapeles)';
             msgInput.style.height = '20px';
         } catch (error) {
             console.error(error);
-            alert(`Error al enviar: ${error.message}`);
+            alert(`Error al enviar el contenido: ${error.message}`);
         } finally {
             sendBtn.disabled = false;
         }
