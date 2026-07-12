@@ -1,16 +1,29 @@
 // js/ui.js
 
-// CONTROL DE TEMA CLARO Y OSCURO
-const currentTheme = localStorage.getItem('theme') || 'light';
-document.documentElement.setAttribute('data-theme', currentTheme);
-themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+// CONTROL DE TEMA CLARO Y OSCURO (Predeterminado oscuro)
+if (!localStorage.getItem('theme')) {
+    localStorage.setItem('theme', 'dark');
+}
+const currentTheme = localStorage.getItem('theme');
+if (currentTheme === 'dark') {
+    document.documentElement.classList.add('dark-mode');
+    themeToggle.textContent = '☀️';
+} else {
+    document.documentElement.classList.remove('dark-mode');
+    themeToggle.textContent = '🌙';
+}
 
 themeToggle.addEventListener('click', () => {
-    const theme = document.documentElement.getAttribute('data-theme');
-    const nextTheme = theme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', nextTheme);
-    localStorage.setItem('theme', nextTheme);
-    themeToggle.textContent = nextTheme === 'dark' ? '☀️' : '🌙';
+    const isDark = document.documentElement.classList.contains('dark-mode');
+    if (isDark) {
+        document.documentElement.classList.remove('dark-mode');
+        localStorage.setItem('theme', 'light');
+        themeToggle.textContent = '🌙';
+    } else {
+        document.documentElement.classList.add('dark-mode');
+        localStorage.setItem('theme', 'dark');
+        themeToggle.textContent = '☀️';
+    }
 });
 
 // CONTROL DE LOGIN DE ADMINISTRADOR
@@ -52,7 +65,7 @@ lightboxModal.addEventListener('wheel', (e) => {
     const delta = e.deltaY > 0 ? -0.15 : 0.15;
     zoomScale = Math.min(Math.max(0.5, zoomScale + delta), 5);
     updateLightboxTransform();
-});
+}, { passive: false });
 
 lightboxImg.addEventListener('mousedown', (e) => {
     isDragging = true;
@@ -67,8 +80,10 @@ window.addEventListener('mousemove', (e) => {
     updateLightboxTransform();
 });
 
-window.addEventListener('mouseup', () => isDragging = false);
-lightboxClose.addEventListener('click', () => lightboxModal.style.display = 'none');
-lightboxModal.addEventListener('click', (e) => {
-    if (e.target === lightboxModal) lightboxModal.style.display = 'none';
+window.addEventListener('mouseup', () => {
+    isDragging = false;
+});
+
+lightboxClose.addEventListener('click', () => {
+    lightboxModal.style.display = 'none';
 });

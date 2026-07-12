@@ -1,58 +1,46 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark-mode" style="background-color: #000000; color: #ffffff;">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Permanente Pro - Supabase</title>
+    <title>Supabase Chat Pro - GitHub Pages</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
 
     <div class="chat-container" id="chatContainer">
         <div class="chat-header">
+            <button id="adminToggle">🔑</button>
             <span>Supabase Chat Pro</span>
-            <div class="header-actions">
-                <button class="btn-header" id="musicToggle" title="Música de Fondo">🎵</button>
-                <button class="btn-header" id="adminToggle" title="Login Admin">🔑</button>
-                <button class="btn-header" id="themeToggle" title="Cambiar tema">🌙</button>
-            </div>
+            <button id="themeToggle">☀️</button>
         </div>
 
-        <div class="music-bar" id="musicBar">
-            <div class="music-search-row">
-                <input type="text" id="musicSearch" placeholder="Escribe canción o artista...">
-                <button id="searchMusicBtn">Buscar</button>
-            </div>
-            <div class="music-results" id="musicResults" style="display:none;"></div>
-            <audio id="bgAudio" loop controls style="width:100%; margin-top:5px; display:none;"></audio>
+        <div class="chat-messages" id="chatMessages">
         </div>
 
-        <div class="preview-container" id="previewContainer"></div>
-        <div class="chat-messages" id="chatMessages">Cargando historial...</div>
+        <div class="preview-container" id="previewContainer" style="display: none;">
+        </div>
 
-        <form class="chat-form" id="chatForm">
-            <label class="file-label">
-                📎
-                <input type="file" id="fileInput" accept="image/*,video/*,application/*" multiple>
-            </label>
-            <textarea id="msgInput" placeholder="Escribe un mensaje..." autocomplete="off"></textarea>
-            <button type="submit" class="btn-submit" id="sendBtn">→</button>
+        <form class="chat-form" id="chatForm" onsubmit="return false;">
+            <label for="fileInput" class="file-label">➕</label>
+            <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
+            <textarea id="msgInput" placeholder="Escribe un mensaje..." rows="1"></textarea>
+            <button id="sendBtn" type="button">Enviar</button>
         </form>
     </div>
 
-    <div class="lightbox-modal" id="lightboxModal">
-        <button class="lightbox-close" id="lightboxClose">&times;</button>
-        <img class="lightbox-content" id="lightboxImg" src="" alt="Vista ampliada" draggable="false">
-        <div class="lightbox-hint">Usa la rueda del ratón o desliza para hacer zoom. Arrastra para mover.</div>
+    <div class="lightbox" id="lightboxModal" style="display: none;">
+        <button class="lightbox-close" id="lightboxClose">×</button>
+        <img class="lightbox-content" id="lightboxImg" src="" alt="Vista ampliada">
+        <div class="lightbox-hint">Usa la rueda del ratón para hacer zoom. Arrastra para mover.</div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script src="js/config.js"></script>
     <script src="js/ui.js"></script>
-    <script src="js/music.js"></script>
     <script src="js/chat.js"></script>
 
 </body>

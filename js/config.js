@@ -16,12 +16,10 @@ const sendBtn = document.getElementById('sendBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
 
-const musicToggle = document.getElementById('musicToggle');
-const musicBar = document.getElementById('musicBar');
-const musicSearch = document.getElementById('musicSearch');
+const musicInput = document.getElementById('musicInput');
 const searchMusicBtn = document.getElementById('searchMusicBtn');
-const musicResults = document.getElementById('musicResults');
-const bgAudio = document.getElementById('bgAudio');
+const currentTrackTitle = document.getElementById('currentTrackTitle');
+const audioPlayer = document.getElementById('audioPlayer');
 
 const lightboxModal = document.getElementById('lightboxModal');
 const lightboxImg = document.getElementById('lightboxImg');

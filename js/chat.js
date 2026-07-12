@@ -1,14 +1,19 @@
-// js/chat.js
+// js/chat.js (Módulo de Mensajería, Storage y Cola de Vista Previa Completo)
 
 // DIBUJAR Y ELIMINAR MINIATURAS EN LA COLA PRE-ENVÍO
 function updateFilePreview() {
+    if (!previewContainer) return;
+
     previewContainer.innerHTML = '';
+
     if (queueFiles.length > 0) {
         previewContainer.style.display = 'flex';
+
         queueFiles.forEach((file, index) => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'preview-item';
 
+            // Botón para quitar el archivo específico de la cola
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn-remove';
             removeBtn.textContent = '×';
@@ -19,6 +24,7 @@ function updateFilePreview() {
             };
             itemDiv.appendChild(removeBtn);
 
+            // Generar miniatura según tipo de archivo
             if (file.type.startsWith('image/')) {
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
@@ -26,6 +32,8 @@ function updateFilePreview() {
             } else if (file.type.startsWith('video/')) {
                 const video = document.createElement('video');
                 video.src = URL.createObjectURL(file);
+                video.muted = true;
+                video.autoplay = false;
                 itemDiv.appendChild(video);
             } else {
                 const icon = document.createElement('div');
@@ -40,43 +48,69 @@ function updateFilePreview() {
     }
 }
 
+// Escuchar la selección de múltiples archivos
 fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-        queueFiles = queueFiles.concat(Array.from(fileInput.files));
-        fileInput.value = "";
-        updateFilePreview();
-    }
+    const files = Array.from(fileInput.files);
+    queueFiles = queueFiles.concat(files);
+    updateFilePreview();
 });
 
-document.addEventListener('paste', (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    let added = false;
-    for (let index in items) {
-        const item = items[index];
-        if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file) {
-                queueFiles.push(file);
-                added = true;
-            }
+// RENDERIZAR MENSAJES EN EL HISTORIAL (Con soporte de Video e Inyección de Hora)
+function renderMessage(msg) {
+    if (!messagesContainer) return;
+
+    const isMe = msg.sender_id === mySessionId;
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `message ${isMe ? 'sent' : 'received'}`;
+    msgDiv.id = `msg-${msg.id}`;
+
+    // 1. Texto del mensaje
+    if (msg.text) {
+        const textPara = document.createElement('p');
+        textPara.style.margin = '0';
+        textPara.textContent = msg.text;
+        msgDiv.appendChild(textPara);
+    }
+
+    // 2. Archivos Multimedia (Imágenes y Videos)
+    if (msg.image_url) {
+        const isVideo = msg.image_url.match(/\.(mp4|webm|ogg|mov)$/i) || msg.image_url.includes('video_');
+        if (isVideo) {
+            const video = document.createElement('video');
+            video.src = msg.image_url;
+            video.controls = true;
+            video.preload = "metadata";
+            msgDiv.appendChild(video);
+        } else {
+            const img = document.createElement('img');
+            img.src = msg.image_url;
+            img.onclick = () => openLightbox(msg.image_url);
+            msgDiv.appendChild(img);
         }
     }
-    if (added) updateFilePreview();
-});
 
-msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-        e.preventDefault();
-        form.dispatchEvent(new Event('submit'));
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.shiftKey)) {
-        setTimeout(() => {
-            msgInput.style.height = 'auto';
-            msgInput.style.height = msgInput.scrollHeight + 'px';
-        }, 10);
-    }
-});
+    // 3. Estampa de Tiempo (Hora del mensaje)
+    const dateObj = msg.created_at ? new Date(msg.created_at) : new Date();
+    const hours = String(dateObj.getHours()).padStart(2, '0');
+    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
 
-// CONSULTAS CRUD HISTÓRICAS DE SUPABASE
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'msg-time';
+    timeSpan.textContent = `${hours}:${minutes}`;
+    msgDiv.appendChild(timeSpan);
+
+    // 4. Botón de borrado para el Modo Administrador
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn-delete';
+    deleteBtn.textContent = '×';
+    deleteBtn.onclick = () => deleteMessage(msg.id);
+    msgDiv.appendChild(deleteBtn);
+
+    messagesContainer.appendChild(msgDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// CARGAR HISTORIAL DESDE LA TABLA SUPABASE
 async function loadInitialMessages() {
     try {
         const { data, error } = await supabaseClient
@@ -85,127 +119,64 @@ async function loadInitialMessages() {
             .order('created_at', { ascending: true });
 
         if (error) throw error;
+
         messagesContainer.innerHTML = '';
-        if (data && data.length > 0) {
-            data.forEach(msg => {
-                if (msg.deleted !== true) renderMessage(msg);
-            });
-        } else {
-            messagesContainer.innerHTML = '<div style="text-align:center;color:#888;font-size:0.9em;padding:10px;">No hay mensajes.</div>';
-        }
+        if (data) data.forEach(msg => renderMessage(msg));
     } catch (error) {
-        console.error(error);
-        messagesContainer.innerHTML = `<div class="log-error"><strong>Error:</strong><br>${error.message}</div>`;
+        console.error("Error al cargar mensajes:", error);
     }
 }
 
-// CANAL ACTIVO DEL TIEMPO REAL SÍNCRONO (ESCUCHA GLOBAL)
-supabaseClient
-    .channel('schema-db-changes')
-    .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
-        if (payload.table === 'messages') {
-            if (payload.eventType === 'INSERT' && !payload.new.deleted) {
-                renderMessage(payload.new);
-            } else if (payload.eventType === 'UPDATE') {
-                if (payload.new.deleted) {
-                    const existingMsgNode = document.getElementById(`msg-${payload.new.id}`);
-                    if (existingMsgNode) existingMsgNode.remove();
-                }
-            }
-        }
-    })
-    .subscribe();
+// ELIMINAR MENSAJE FÍSICO
+async function deleteMessage(id) {
+    if (!isAdmin) return;
+    if (!confirm('¿Deseas eliminar este mensaje de forma permanente?')) return;
 
-function renderMessage(data) {
-    const msgId = data.id || `temp-${Date.now()}`;
-    if (document.getElementById(`msg-${msgId}`)) return;
-
-    const msgDiv = document.createElement('div');
-    msgDiv.id = `msg-${msgId}`;
-    msgDiv.className = `msg ${data.sender_id === mySessionId ? 'mine' : ''}`;
-
-    if (data.text) {
-        const textSpan = document.createElement('span');
-        textSpan.textContent = data.text;
-        msgDiv.appendChild(textSpan);
-    }
-
-    if (data.image_url) {
-        const url = data.image_url;
-        const isVideo = url.match(/\.(mp4|webm|ogg|mov)/i) || url.includes('video_');
-
-        if (isVideo) {
-            const video = document.createElement('video');
-            video.src = url;
-            video.controls = true;
-            msgDiv.appendChild(video);
-        } else {
-            const img = document.createElement('img');
-            img.src = url;
-            img.onclick = () => openLightbox(url);
-            img.onerror = function () {
-                const link = document.createElement('a');
-                link.href = url;
-                link.target = '_blank';
-                link.className = 'file-attachment';
-                link.innerHTML = `📁 Descargar Archivo adjunto`;
-                msgDiv.replaceChild(link, img);
-            };
-            msgDiv.appendChild(img);
-        }
-    }
-
-    const msgMeta = document.createElement('div');
-    msgMeta.className = 'msg-meta';
-    const timeString = data.created_at
-        ? new Date(data.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    const timeSpan = document.createElement('span');
-    timeSpan.textContent = timeString;
-    msgMeta.appendChild(timeSpan);
-
-    if (data.id) {
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'btn-delete';
-        deleteBtn.textContent = '🗑️';
-        deleteBtn.onclick = () => deleteMessageLogically(data.id);
-        msgMeta.appendChild(deleteBtn);
-    }
-
-    msgDiv.appendChild(msgMeta);
-    messagesContainer.appendChild(msgDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-async function deleteMessageLogically(msgId) {
-    if (!confirm("¿Ocultar este mensaje del chat?")) return;
     try {
         const { error } = await supabaseClient
             .from('messages')
-            .update({ deleted: true })
-            .eq('id', msgId);
+            .delete()
+            .eq('id', id);
         if (error) throw error;
     } catch (error) {
-        alert(`Error al borrar: ${error.message}`);
+        console.error(error);
+        alert('Error al intentar eliminar el registro.');
     }
 }
 
-// ENVÍO DE DATOS Y GESTIÓN MULTI-SUBIDA A STORAGE BUCKET
-form.addEventListener('submit', async (e) => {
-    if (e) e.preventDefault();
+// ESCUCHA REALTIME ACTIVA DE LA BASE DE DATOS
+supabaseClient
+    .channel('schema-db-changes')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        renderMessage(payload.new);
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
+        const deletedId = payload.old.id;
+        const el = document.getElementById(`msg-${deletedId}`);
+        if (el) el.remove();
+    })
+    .subscribe();
+
+// AUTO-REDIMENSIÓN DEL ÁREA DE TEXTO
+msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = (msgInput.scrollHeight) + 'px';
+});
+
+// ENVIAR MENSAJE CON LOGICA DE SUBIDA MULTIMEDIA A STORAGE
+async function sendMessage() {
     const text = msgInput.value.trim();
     if (!text && queueFiles.length === 0) return;
 
-    sendBtn.disabled = true;
-
     try {
         if (queueFiles.length === 0) {
+            // Envío normal de texto
             const { error } = await supabaseClient
                 .from('messages')
                 .insert([{ text: text, sender_id: mySessionId }]);
             if (error) throw error;
         } else {
+            // Envío en bloque si hay archivos en la cola de subida
             for (let i = 0; i < queueFiles.length; i++) {
                 const file = queueFiles[i];
                 const isVid = file.type.startsWith('video/');
@@ -232,16 +203,25 @@ form.addEventListener('submit', async (e) => {
             }
         }
 
+        // Limpieza de estados e interfaz tras completar el envío exitoso
         form.reset();
         queueFiles = [];
         updateFilePreview();
-        msgInput.style.height = '20px';
+        msgInput.style.height = 'auto';
     } catch (error) {
         console.error(error);
-        alert(`Fallo al enviar: ${error.message}`);
-    } finally {
-        sendBtn.disabled = false;
+        alert(`Fallo al enviar el mensaje: ${error.message}`);
+    }
+}
+
+// Vinculación de gatillos de envío
+sendBtn.addEventListener('click', sendMessage);
+msgInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
     }
 });
 
+// Inicializar al cargar el archivo
 loadInitialMessages();
