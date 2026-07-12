@@ -1,3 +1,38 @@
+/* 🌑 1. VARIABLES EN NEGRO TOTAL OBLIGATORIO (MODO POR DEFECTO) */
+:root {
+    --bg-body: #000000;
+    --bg-container: #0b0b0b;
+    --bg-header: #111111;
+    --text-header: #ffffff;
+    --bg-messages: #000000;
+    --bg-msg-sent: #054c4d;
+    --text-msg-sent: #ffffff;
+    --bg-msg-received: #1f1f1f;
+    --text-msg-received: #ffffff;
+    --bg-form: #111111;
+    --bg-input: #1a1a1a;
+    --text-input: #ffffff;
+    --bg-preview: #161616;
+}
+
+/* ☀️ 2. VARIABLES DEL MODO CLARO SECUNDARIO (CUANDO NO TIENE LA CLASE .dark-mode) */
+html:not(.dark-mode) {
+    --bg-body: #efeae2;
+    --bg-container: #ffffff;
+    --bg-header: #1c1c1c;
+    --text-header: #ffffff;
+    --bg-messages: #efeae2;
+    --bg-msg-sent: #d9fdd3;
+    --text-msg-sent: #111b21;
+    --bg-msg-received: #ffffff;
+    --text-msg-received: #111b21;
+    --bg-form: #f0f2f5;
+    --bg-input: #ffffff;
+    --text-input: #111b21;
+    --bg-preview: #f0f2f5;
+}
+
+/* 3. ESTRUCTURA GLOBAL Y EVITAR RECORTES (LAYOUT CONTROL) */
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
     background-color: var(--bg-body);
@@ -5,6 +40,9 @@ body {
     padding: 20px;
     display: flex;
     justify-content: center;
+    align-items: center;
+    height: 100vh;
+    box-sizing: border-box;
     transition: background 0.3s;
 }
 
@@ -23,6 +61,7 @@ body {
     border: 1px solid #222;
 }
 
+/* COMPONENTES DEL CHAT */
 .chat-header {
     background: var(--bg-header);
     color: var(--text-header);
@@ -36,6 +75,8 @@ body {
     align-items: center;
     transition: background 0.3s;
     z-index: 10;
+    flex-shrink: 0;
+    /* Evita que el header se aplaste */
 }
 
 .chat-header button {
@@ -49,6 +90,8 @@ body {
 
 .chat-messages {
     flex: 1;
+    min-height: 0;
+    /* CRÍTICO: Permite que el contenedor calcule bien el espacio y use scroll en flexbox */
     padding: 15px;
     overflow-y: auto;
     background: var(--bg-messages);
@@ -57,6 +100,7 @@ body {
     gap: 12px;
 }
 
+/* BURBUJAS DE MENSAJE */
 .message {
     padding: 10px 14px;
     border-radius: 8px;
@@ -114,6 +158,7 @@ body {
     display: block;
 }
 
+/* COLA DE VISTA PREVIA (PASTE & FILE INPUT) */
 .preview-container {
     display: flex;
     gap: 8px;
@@ -121,6 +166,8 @@ body {
     background: var(--bg-preview);
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     overflow-x: auto;
+    flex-shrink: 0;
+    /* Evita que la barra de miniaturas rompa el layout */
 }
 
 .preview-item {
@@ -169,6 +216,7 @@ body {
     z-index: 3;
 }
 
+/* FORMULARIO DE ENVÍO DE TEXTO */
 .chat-form {
     display: flex;
     align-items: center;
@@ -176,6 +224,8 @@ body {
     background: var(--bg-form);
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     gap: 8px;
+    flex-shrink: 0;
+    /* Mantiene la barra de entrada visible siempre abajo */
 }
 
 .file-label {
@@ -215,7 +265,7 @@ body {
     align-items: center;
 }
 
-/* Visor Modal (Lightbox) */
+/* VISOR MODAL (LIGHTBOX) */
 .lightbox {
     position: fixed;
     top: 0;
@@ -224,6 +274,7 @@ body {
     height: 100%;
     background: rgba(0, 0, 0, 0.95);
     z-index: 9999;
+    display: none;
     justify-content: center;
     align-items: center;
     overflow: hidden;
@@ -265,40 +316,148 @@ body {
     pointer-events: none;
 }
 
-/* 🌑 VARIABLES EN NEGRO TOTAL OBLIGATORIO */
-:root {
-    --bg-body: #000000;
-    --bg-container: #0b0b0b;
-    --bg-header: #111111;
-    --text-header: #ffffff;
-    --bg-messages: #000000;
-    --bg-msg-sent: #054c4d;
-    --text-msg-sent: #ffffff;
-    --bg-msg-received: #1f1f1f;
-    --text-msg-received: #ffffff;
-    --bg-form: #111111;
-    --bg-input: #1a1a1a;
-    --text-input: #ffffff;
-    --bg-preview: #161616;
+/* AGRUPACIÓN DE BOTONES EN EL HEADER */
+.header-actions {
+    display: flex;
+    gap: 6px;
 }
 
-/* ☀️ VARIABLES DEL MODO CLARO SECUNDARIO */
-html:not(.dark-mode) :root {
-    --bg-body: #efeae2;
-    --bg-container: #ffffff;
-    --bg-header: #1c1c1c;
-    --text-header: #ffffff;
-    --bg-messages: #efeae2;
-    --bg-msg-sent: #d9fdd3;
-    --text-msg-sent: #111b21;
-    --bg-msg-received: #ffffff;
-    --text-msg-received: #111b21;
-    --bg-form: #f0f2f5;
-    --bg-input: #ffffff;
-    --text-input: #111b21;
-    --bg-preview: #f0f2f5;
+/* PANEL DE BÚSQUEDA Y REPRODUCCIÓN DE RADIO */
+.music-panel {
+    max-height: 0;
+    overflow: hidden;
+    background: var(--bg-preview);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: max-height 0.25s ease;
+    flex-shrink: 0;
 }
 
+.music-panel.open {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.music-search-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+}
+
+.music-search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.9em;
+    outline: none;
+}
+
+.music-search-row button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.radio-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px;
+}
+
+.radio-status {
+    text-align: center;
+    color: var(--text-msg-received);
+    opacity: 0.7;
+    font-size: 0.85em;
+    padding: 10px;
+}
+
+.radio-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.radio-item:hover {
+    background: rgba(62, 207, 142, 0.15);
+}
+
+.radio-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #222;
+    flex-shrink: 0;
+}
+
+.radio-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.radio-name {
+    font-size: 0.88em;
+    color: var(--text-msg-received);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.radio-meta {
+    font-size: 0.72em;
+    opacity: 0.6;
+    color: var(--text-msg-received);
+}
+
+.radio-play-icon {
+    color: #3ecf8e;
+    font-size: 0.9em;
+    flex-shrink: 0;
+}
+
+.music-player-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.music-player-bar button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.current-track {
+    font-size: 0.82em;
+    color: var(--text-msg-received);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ANIMACIONES */
 @keyframes fadeIn {
     from {
         opacity: 0;

@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Inicialización única de la instancia global de Supabase
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Referencias a los elementos del DOM
+// Referencias a los elementos del DOM (chat)
 const chatContainer = document.getElementById('chatContainer');
 const messagesContainer = document.getElementById('chatMessages');
 const form = document.getElementById('chatForm');
@@ -16,11 +16,17 @@ const sendBtn = document.getElementById('sendBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
 
+// Referencias a los elementos del DOM (radio / música)
+const musicToggle = document.getElementById('musicToggle');
+const musicPanel = document.getElementById('musicPanel');
 const musicInput = document.getElementById('musicInput');
 const searchMusicBtn = document.getElementById('searchMusicBtn');
+const radioResults = document.getElementById('radioResults');
 const currentTrackTitle = document.getElementById('currentTrackTitle');
 const audioPlayer = document.getElementById('audioPlayer');
+const playPauseBtn = document.getElementById('playPauseBtn');
 
+// Referencias a los elementos del DOM (lightbox)
 const lightboxModal = document.getElementById('lightboxModal');
 const lightboxImg = document.getElementById('lightboxImg');
 const lightboxClose = document.getElementById('lightboxClose');

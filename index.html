@@ -15,8 +15,26 @@
         <div class="chat-header">
             <button id="adminToggle">🔑</button>
             <span>Supabase Chat Pro</span>
-            <button id="themeToggle">☀️</button>
+            <div class="header-actions">
+                <button id="musicToggle" title="Radio / Música">🎵</button>
+                <button id="themeToggle">☀️</button>
+            </div>
         </div>
+
+        <!-- PANEL DE BÚSQUEDA Y REPRODUCCIÓN DE RADIO -->
+        <div class="music-panel" id="musicPanel">
+            <div class="music-search-row">
+                <input type="text" id="musicInput" placeholder="Buscar estación de radio (ej. rock, jazz, noticias)...">
+                <button id="searchMusicBtn">Buscar</button>
+            </div>
+            <div class="radio-results" id="radioResults"></div>
+            <div class="music-player-bar">
+                <button id="playPauseBtn">▶</button>
+                <span class="current-track" id="currentTrackTitle">Ninguna estación seleccionada</span>
+                <audio id="audioPlayer"></audio>
+            </div>
+        </div>
+
         <div class="chat-messages" id="chatMessages"></div>
         <div class="preview-container" id="previewContainer" style="display: none;"></div>
         <form class="chat-form" id="chatForm" onsubmit="return false;">
@@ -27,8 +45,16 @@
         </form>
     </div>
 
+    <!-- MODAL LIGHTBOX PARA VISUALIZAR IMÁGENES -->
+    <div class="lightbox" id="lightboxModal">
+        <button class="lightbox-close" id="lightboxClose">&times;</button>
+        <img class="lightbox-content" id="lightboxImg" src="" alt="">
+        <span class="lightbox-hint">Rueda del mouse: zoom · Arrastrar: mover</span>
+    </div>
+
     <script src="js/config.js"></script>
     <script src="js/ui.js"></script>
+    <script src="js/music.js"></script>
     <script src="js/chat.js"></script>
 </body>
 

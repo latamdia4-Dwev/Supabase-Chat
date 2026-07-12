@@ -1,4 +1,22 @@
 // js/chat.js (Módulo de Mensajería, Storage y Cola de Vista Previa Completo)
+// NOTA: previewContainer, fileInput, msgInput, messagesContainer, sendBtn, form,
+// mySessionId, queueFiles, isAdmin y supabaseClient YA están declarados en config.js
+// (que se carga antes que este archivo). NO se redeclaran aquí para evitar
+// "Identifier has already been declared" (SyntaxError que aborta todo el script).
+
+// SOPORTE PARA PEGAR (PASTE) DESDE EL PORTAPAPELES
+document.addEventListener('paste', (event) => {
+    const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file') {
+            const file = items[i].getAsFile();
+            if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+                queueFiles.push(file);
+                updateFilePreview();
+            }
+        }
+    }
+});
 
 // DIBUJAR Y ELIMINAR MINIATURAS EN LA COLA PRE-ENVÍO
 function updateFilePreview() {
@@ -13,7 +31,6 @@ function updateFilePreview() {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'preview-item';
 
-            // Botón para quitar el archivo específico de la cola
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn-remove';
             removeBtn.textContent = '×';
@@ -24,7 +41,6 @@ function updateFilePreview() {
             };
             itemDiv.appendChild(removeBtn);
 
-            // Generar miniatura según tipo de archivo
             if (file.type.startsWith('image/')) {
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
@@ -49,11 +65,13 @@ function updateFilePreview() {
 }
 
 // Escuchar la selección de múltiples archivos
-fileInput.addEventListener('change', () => {
-    const files = Array.from(fileInput.files);
-    queueFiles = queueFiles.concat(files);
-    updateFilePreview();
-});
+if (fileInput) {
+    fileInput.addEventListener('change', () => {
+        const files = Array.from(fileInput.files);
+        queueFiles = queueFiles.concat(files);
+        updateFilePreview();
+    });
+}
 
 // RENDERIZAR MENSAJES EN EL HISTORIAL (Con soporte de Video e Inyección de Hora)
 function renderMessage(msg) {
@@ -64,7 +82,6 @@ function renderMessage(msg) {
     msgDiv.className = `message ${isMe ? 'sent' : 'received'}`;
     msgDiv.id = `msg-${msg.id}`;
 
-    // 1. Texto del mensaje
     if (msg.text) {
         const textPara = document.createElement('p');
         textPara.style.margin = '0';
@@ -72,7 +89,6 @@ function renderMessage(msg) {
         msgDiv.appendChild(textPara);
     }
 
-    // 2. Archivos Multimedia (Imágenes y Videos)
     if (msg.image_url) {
         const isVideo = msg.image_url.match(/\.(mp4|webm|ogg|mov)$/i) || msg.image_url.includes('video_');
         if (isVideo) {
@@ -89,7 +105,6 @@ function renderMessage(msg) {
         }
     }
 
-    // 3. Estampa de Tiempo (Hora del mensaje)
     const dateObj = msg.created_at ? new Date(msg.created_at) : new Date();
     const hours = String(dateObj.getHours()).padStart(2, '0');
     const minutes = String(dateObj.getMinutes()).padStart(2, '0');
@@ -99,7 +114,6 @@ function renderMessage(msg) {
     timeSpan.textContent = `${hours}:${minutes}`;
     msgDiv.appendChild(timeSpan);
 
-    // 4. Botón de borrado para el Modo Administrador
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-delete';
     deleteBtn.textContent = '×';
@@ -158,10 +172,12 @@ supabaseClient
     .subscribe();
 
 // AUTO-REDIMENSIÓN DEL ÁREA DE TEXTO
-msgInput.addEventListener('input', () => {
-    msgInput.style.height = 'auto';
-    msgInput.style.height = (msgInput.scrollHeight) + 'px';
-});
+if (msgInput) {
+    msgInput.addEventListener('input', () => {
+        msgInput.style.height = 'auto';
+        msgInput.style.height = (msgInput.scrollHeight) + 'px';
+    });
+}
 
 // ENVIAR MENSAJE CON LOGICA DE SUBIDA MULTIMEDIA A STORAGE
 async function sendMessage() {
@@ -170,13 +186,11 @@ async function sendMessage() {
 
     try {
         if (queueFiles.length === 0) {
-            // Envío normal de texto
             const { error } = await supabaseClient
                 .from('messages')
                 .insert([{ text: text, sender_id: mySessionId }]);
             if (error) throw error;
         } else {
-            // Envío en bloque si hay archivos en la cola de subida
             for (let i = 0; i < queueFiles.length; i++) {
                 const file = queueFiles[i];
                 const isVid = file.type.startsWith('video/');
@@ -203,7 +217,6 @@ async function sendMessage() {
             }
         }
 
-        // Limpieza de estados e interfaz tras completar el envío exitoso
         form.reset();
         queueFiles = [];
         updateFilePreview();
@@ -215,13 +228,15 @@ async function sendMessage() {
 }
 
 // Vinculación de gatillos de envío
-sendBtn.addEventListener('click', sendMessage);
-msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+if (sendBtn) sendBtn.addEventListener('click', sendMessage);
+if (msgInput) {
+    msgInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+}
 
 // Inicializar al cargar el archivo
 loadInitialMessages();
