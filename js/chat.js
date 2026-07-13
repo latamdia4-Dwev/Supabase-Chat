@@ -23,38 +23,14 @@ document.addEventListener('paste', (event) => {
     if (!clipboardData) return;
     const items = clipboardData.items;
 
-    // --- DIAGNÓSTICO ---
-    // Abre la consola (F12 → Console), pega el video capturado con Lark y
-    // revisa lo que se imprime aquí. Esto nos dice exactamente qué tipo de
-    // dato entrega Lark al portapapeles (archivo real de video, o solo un
-    // enlace de texto al video subido a su nube, que es lo más común en este
-    // tipo de herramientas).
-    console.log('--- Contenido pegado (paste) ---');
-    for (let i = 0; i < items.length; i++) {
-        console.log(`  item[${i}]: kind="${items[i].kind}", type="${items[i].type}"`);
-    }
-
-    let fileFound = false;
-
     for (let i = 0; i < items.length; i++) {
         if (items[i].kind === 'file') {
             const file = items[i].getAsFile();
             if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-                console.log(`✅ Archivo detectado y agregado a la cola: nombre="${file.name || '(sin nombre)'}", tamaño=${(file.size / 1024 / 1024).toFixed(2)} MB, tipo=${file.type}`);
                 queueFiles.push(file);
                 updateFilePreview();
-                console.log('queueFiles ahora tiene', queueFiles.length, 'archivo(s). previewContainer existe:', !!previewContainer, '| display actual:', previewContainer ? previewContainer.style.display : 'N/A');
-                fileFound = true;
-            } else if (file) {
-                console.warn('Se encontró un archivo pero con un tipo no soportado:', file.type);
-            } else {
-                console.warn(`item[${i}] es de tipo "file" pero getAsFile() devolvió null (el navegador no pudo leerlo como archivo).`);
             }
         }
-    }
-
-    if (!fileFound) {
-        console.log('No se encontró ningún archivo de imagen/video utilizable en el portapapeles. Si Lark solo copió un enlace de texto, revisa si aparece como texto en el campo de mensaje al pegar.');
     }
 });
 
