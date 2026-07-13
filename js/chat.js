@@ -5,7 +5,7 @@
 // "Identifier has already been declared" (SyntaxError que aborta todo el script).
 
 // --- PAGINACIÓN DEL HISTORIAL (carga perezosa hacia atrás) ---
-const MESSAGES_PAGE_SIZE = 1;
+const MESSAGES_PAGE_SIZE = 0;
 let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
@@ -153,24 +153,25 @@ async function loadInitialMessages() {
             ordered.forEach(msg => renderMessage(msg));
             oldestMessageTimestamp = ordered[0].created_at;
             noMoreOlderMessages = data.length < MESSAGES_PAGE_SIZE;
-            fillHistoryIfNotScrollable();
         } else {
             noMoreOlderMessages = true;
         }
+        updateLoadMoreBar();
     } catch (error) {
         console.error("Error al cargar mensajes:", error);
     }
 }
 
-// CARGAR MENSAJES ANTERIORES AL DESLIZAR HACIA ARRIBA (scroll infinito hacia atrás)
+// CARGAR MENSAJES ANTERIORES (al hacer clic en la barra "Cargar mensajes anteriores"
+// o, como atajo adicional, al deslizar hasta el tope del historial si es que hay scroll)
 async function loadOlderMessages() {
     if (isLoadingOlderMessages || noMoreOlderMessages || !oldestMessageTimestamp || !messagesContainer) return;
     isLoadingOlderMessages = true;
 
-    const loadingIndicator = document.createElement('div');
-    loadingIndicator.className = 'history-loading';
-    loadingIndicator.textContent = 'Cargando mensajes anteriores...';
-    messagesContainer.prepend(loadingIndicator);
+    if (loadMoreBar) {
+        loadMoreBar.textContent = 'Cargando...';
+        loadMoreBar.disabled = true;
+    }
 
     try {
         const { data, error } = await supabaseClient
@@ -181,8 +182,6 @@ async function loadOlderMessages() {
             .limit(MESSAGES_PAGE_SIZE);
 
         if (error) throw error;
-
-        loadingIndicator.remove();
 
         if (!data || data.length === 0) {
             noMoreOlderMessages = true;
@@ -200,28 +199,32 @@ async function loadOlderMessages() {
 
         const newScrollHeight = messagesContainer.scrollHeight;
         messagesContainer.scrollTop = newScrollHeight - previousScrollHeight;
-
-        isLoadingOlderMessages = false;
-        fillHistoryIfNotScrollable();
-        return;
     } catch (error) {
         console.error("Error al cargar mensajes anteriores:", error);
-        loadingIndicator.remove();
     } finally {
         isLoadingOlderMessages = false;
+        if (loadMoreBar) loadMoreBar.disabled = false;
+        updateLoadMoreBar();
     }
 }
 
-// Si el historial cargado no llena el alto visible del chat, no hay nada que
-// scrollear y el evento 'scroll' nunca se dispara. Esta función revisa eso y,
-// si aún hay mensajes disponibles, carga otra tanda automáticamente hasta que
-// el contenido llene el espacio (o ya no queden mensajes anteriores).
-function fillHistoryIfNotScrollable() {
-    if (!messagesContainer || noMoreOlderMessages || isLoadingOlderMessages) return;
-    if (messagesContainer.scrollHeight <= messagesContainer.clientHeight) {
-        loadOlderMessages();
+// Muestra u oculta la barra "Cargar mensajes anteriores" según si queda historial
+function updateLoadMoreBar() {
+    if (!loadMoreBar) return;
+    if (noMoreOlderMessages) {
+        loadMoreBar.style.display = 'none';
+    } else {
+        loadMoreBar.style.display = 'block';
+        loadMoreBar.textContent = 'Cargar mensajes anteriores ↑';
     }
 }
+
+if (loadMoreBar) {
+    loadMoreBar.addEventListener('click', loadOlderMessages);
+}
+
+// Atajo adicional: si el historial sí llega a ser más alto que el área visible,
+// deslizar hasta arriba también dispara la carga (además del botón de la barra).
 if (messagesContainer) {
     messagesContainer.addEventListener('scroll', () => {
         if (messagesContainer.scrollTop < 40) {

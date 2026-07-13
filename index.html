@@ -18,6 +18,7 @@
             <div class="header-actions">
                 <button id="musicToggle" title="Radio / Música">🎵</button>
                 <button id="themeToggle">☀️</button>
+                <button id="hideChatBtn" title="Ocultar chat">🙈</button>
             </div>
         </div>
 
@@ -41,6 +42,9 @@
             <div class="radio-results" id="radioResults"></div>
         </div>
 
+        <!-- BARRA PARA CARGAR MENSAJES ANTERIORES (visible cuando hay más historial disponible) -->
+        <button class="load-more-bar" id="loadMoreBar" style="display: none;">Cargar mensajes anteriores ↑</button>
+
         <div class="chat-messages" id="chatMessages"></div>
         <div class="preview-container" id="previewContainer" style="display: none;"></div>
         <form class="chat-form" id="chatForm" onsubmit="return false;">
@@ -49,6 +53,17 @@
             <textarea id="msgInput" placeholder="Escribe un mensaje..." rows="1"></textarea>
             <button id="sendBtn" type="button">Enviar</button>
         </form>
+
+        <!-- PANTALLA DE BLOQUEO POR CONTRASEÑA (cubre el chat al cargar y al ocultarlo) -->
+        <div class="lock-overlay" id="lockOverlay" style="display: flex;">
+            <div class="lock-box">
+                <div class="lock-icon">🔒</div>
+                <p class="lock-title">Chat protegido</p>
+                <input type="password" id="lockPasswordInput" placeholder="Contraseña" autocomplete="off">
+                <button id="lockSubmitBtn">Desbloquear</button>
+                <p class="lock-error" id="lockError" style="display: none;">Contraseña incorrecta.</p>
+            </div>
+        </div>
     </div>
 
     <!-- MODAL LIGHTBOX PARA VISUALIZAR IMÁGENES -->
@@ -59,6 +74,7 @@
     </div>
 
     <script src="js/config.js"></script>
+    <script src="js/lock.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/music.js"></script>
     <script src="js/chat.js"></script>

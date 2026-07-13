@@ -5,6 +5,12 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // Inicialización única de la instancia global de Supabase
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// CONTRASEÑA PARA DESBLOQUEAR EL CHAT (cámbiala por la tuya)
+// ADVERTENCIA: esto es solo una protección visual básica del lado del cliente.
+// Cualquiera que revise el código fuente (Ctrl+U / DevTools) puede ver esta
+// contraseña en texto plano. No usar para proteger información realmente sensible.
+const CHAT_ACCESS_PASSWORD = "sanabel";
+
 // Referencias a los elementos del DOM (chat)
 const chatContainer = document.getElementById('chatContainer');
 const messagesContainer = document.getElementById('chatMessages');
@@ -15,6 +21,14 @@ const previewContainer = document.getElementById('previewContainer');
 const sendBtn = document.getElementById('sendBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
+const hideChatBtn = document.getElementById('hideChatBtn');
+const loadMoreBar = document.getElementById('loadMoreBar');
+
+// Referencias a los elementos del DOM (bloqueo por contraseña)
+const lockOverlay = document.getElementById('lockOverlay');
+const lockPasswordInput = document.getElementById('lockPasswordInput');
+const lockSubmitBtn = document.getElementById('lockSubmitBtn');
+const lockError = document.getElementById('lockError');
 
 // Referencias a los elementos del DOM (radio / música)
 const musicToggle = document.getElementById('musicToggle');
