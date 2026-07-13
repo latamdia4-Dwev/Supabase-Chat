@@ -30,7 +30,7 @@ themeToggle.addEventListener('click', () => {
 adminToggle.addEventListener('click', () => {
     if (!isAdmin) {
         const password = prompt("Introduce la clave de Administrador:");
-        if (password === "admin123") {
+        if (password === ADMIN_PASSWORD) {
             isAdmin = true;
             chatContainer.classList.add('admin-mode');
             adminToggle.textContent = "🔓";

@@ -5,7 +5,14 @@
 // "Identifier has already been declared" (SyntaxError que aborta todo el script).
 
 // --- PAGINACIÓN DEL HISTORIAL (carga perezosa hacia atrás) ---
-const MESSAGES_PAGE_SIZE = 0;
+// Cuántos mensajes se muestran automáticamente al entrar al chat.
+// Ponlo en 0 para que no se muestre ningún mensaje hasta que se pulse
+// "Cargar mensajes anteriores".
+const INITIAL_MESSAGES_COUNT = 0;
+
+// Cuántos mensajes se cargan cada vez que se pulsa "Cargar mensajes anteriores".
+const MESSAGES_PAGE_SIZE = 2;
+
 let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
@@ -135,27 +142,36 @@ function renderMessage(msg, prepend = false) {
     }
 }
 
-// CARGAR SOLO LOS ÚLTIMOS MENSAJES AL ABRIR EL CHAT
+// CARGAR MENSAJES AL ABRIR EL CHAT (respeta INITIAL_MESSAGES_COUNT)
 async function loadInitialMessages() {
     try {
-        const { data, error } = await supabaseClient
-            .from('messages')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(MESSAGES_PAGE_SIZE);
-
-        if (error) throw error;
-
         messagesContainer.innerHTML = '';
 
-        if (data && data.length > 0) {
-            const ordered = data.slice().reverse(); // de más antiguo a más reciente
-            ordered.forEach(msg => renderMessage(msg));
-            oldestMessageTimestamp = ordered[0].created_at;
-            noMoreOlderMessages = data.length < MESSAGES_PAGE_SIZE;
+        if (INITIAL_MESSAGES_COUNT > 0) {
+            const { data, error } = await supabaseClient
+                .from('messages')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(INITIAL_MESSAGES_COUNT);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                const ordered = data.slice().reverse(); // de más antiguo a más reciente
+                ordered.forEach(msg => renderMessage(msg));
+                oldestMessageTimestamp = ordered[0].created_at;
+                noMoreOlderMessages = data.length < INITIAL_MESSAGES_COUNT;
+            } else {
+                noMoreOlderMessages = true;
+            }
         } else {
-            noMoreOlderMessages = true;
+            // No se muestra nada al entrar. Usamos la hora actual como punto de
+            // partida, así "Cargar mensajes anteriores" trae los mensajes más
+            // recientes existentes la primera vez que se presiona.
+            oldestMessageTimestamp = new Date().toISOString();
+            noMoreOlderMessages = false;
         }
+
         updateLoadMoreBar();
     } catch (error) {
         console.error("Error al cargar mensajes:", error);
