@@ -266,16 +266,36 @@ async function deleteMessage(id) {
     }
 }
 
+// Mensajes que llegan por Realtime mientras el chat está oculto (candado activo);
+// se muestran recién cuando se desbloquea, para no filtrar contenido en pantalla.
+let pendingMessagesWhileHidden = [];
+
+function isChatCurrentlyHidden() {
+    return !!(lockOverlay && lockOverlay.style.display !== 'none');
+}
+
+function flushPendingMessages() {
+    pendingMessagesWhileHidden.forEach(msg => renderMessage(msg));
+    pendingMessagesWhileHidden = [];
+}
+
 // ESCUCHA REALTIME ACTIVA DE LA BASE DE DATOS
 supabaseClient
     .channel('schema-db-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        renderMessage(payload.new);
+        if (isChatCurrentlyHidden()) {
+            pendingMessagesWhileHidden.push(payload.new);
+        } else {
+            renderMessage(payload.new);
+        }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
         const deletedId = payload.old.id;
         const el = document.getElementById(`msg-${deletedId}`);
         if (el) el.remove();
+        // Si el mensaje eliminado estaba en la cola de pendientes (llegó y se borró
+        // mientras el chat estaba oculto), también se descarta de ahí.
+        pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== deletedId);
     })
     .subscribe();
 
