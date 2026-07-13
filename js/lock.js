@@ -7,20 +7,19 @@
 // sin tener que volver a consultar la base de datos.
 let savedMessagesHTML = null;
 
+// En lock.js
 function showLockScreen() {
     if (!lockOverlay) return;
 
-    // Vaciar el historial del DOM mientras el chat está bloqueado/oculto
+    // SOLUCIÓN: En lugar de guardar y borrar el innerHTML, solo ocultamos el contenedor
     if (messagesContainer) {
-        savedMessagesHTML = messagesContainer.innerHTML;
-        messagesContainer.innerHTML = '';
+        messagesContainer.style.visibility = 'hidden';
     }
 
     lockOverlay.style.display = 'flex';
     if (lockError) lockError.style.display = 'none';
     if (lockPasswordInput) {
         lockPasswordInput.value = '';
-        // Pequeño retraso para asegurar que el overlay ya es visible antes de enfocar
         setTimeout(() => lockPasswordInput.focus(), 50);
     }
 }
@@ -29,10 +28,10 @@ function hideLockScreen() {
     if (!lockOverlay) return;
     lockOverlay.style.display = 'none';
 
-    // Restaurar el historial que se guardó al ocultar el chat
-    if (messagesContainer && savedMessagesHTML !== null) {
-        messagesContainer.innerHTML = savedMessagesHTML;
-        savedMessagesHTML = null;
+    // SOLUCIÓN: Volvemos a hacer visible el contenedor de mensajes, 
+    // manteniendo intactos todos los botones y sus clics.
+    if (messagesContainer) {
+        messagesContainer.style.visibility = 'visible';
     }
 
     // Mostrar los mensajes que llegaron por Realtime mientras estaba oculto
@@ -44,7 +43,6 @@ function hideLockScreen() {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 }
-
 function checkLockPassword() {
     if (!lockPasswordInput) return;
     const entered = lockPasswordInput.value;

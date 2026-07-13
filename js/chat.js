@@ -207,10 +207,12 @@ async function loadOlderMessages() {
         // Guardamos la altura previa para mantener la posición visual del scroll
         const previousScrollHeight = messagesContainer.scrollHeight;
 
-        const ordered = data.slice().reverse();
-        ordered.forEach(msg => renderMessage(msg, true));
+        // Eliminamos el reverse() para que el apilamiento (prepend) quede en el orden correcto
+        data.forEach(msg => renderMessage(msg, true));
 
-        oldestMessageTimestamp = ordered[0].created_at;
+        // Como no invertimos el array, el mensaje más antiguo de esta carga es el último elemento
+        oldestMessageTimestamp = data[data.length - 1].created_at;
+
         if (data.length < MESSAGES_PAGE_SIZE) noMoreOlderMessages = true;
 
         const newScrollHeight = messagesContainer.scrollHeight;
