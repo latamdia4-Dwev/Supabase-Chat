@@ -330,17 +330,19 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     transition: max-height 0.25s ease;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .music-panel.open {
-    max-height: 320px;
-    overflow-y: auto;
+    max-height: 340px;
 }
 
 .music-search-row {
     display: flex;
     gap: 8px;
     padding: 10px;
+    flex-shrink: 0;
 }
 
 .music-search-row input {
@@ -369,6 +371,9 @@ body {
     flex-direction: column;
     gap: 6px;
     padding: 0 10px;
+    overflow-y: auto;
+    max-height: 190px;
+    flex-shrink: 1;
 }
 
 .radio-status {
@@ -436,7 +441,10 @@ body {
     gap: 10px;
     padding: 10px;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+    margin-top: auto;
 }
+
 
 .music-player-bar button {
     background: #3ecf8e;
