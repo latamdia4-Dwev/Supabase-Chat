@@ -5,7 +5,7 @@
 // "Identifier has already been declared" (SyntaxError que aborta todo el script).
 
 // --- PAGINACIÓN DEL HISTORIAL (carga perezosa hacia atrás) ---
-const MESSAGES_PAGE_SIZE = 3;
+const MESSAGES_PAGE_SIZE = 1;
 let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
@@ -153,6 +153,7 @@ async function loadInitialMessages() {
             ordered.forEach(msg => renderMessage(msg));
             oldestMessageTimestamp = ordered[0].created_at;
             noMoreOlderMessages = data.length < MESSAGES_PAGE_SIZE;
+            fillHistoryIfNotScrollable();
         } else {
             noMoreOlderMessages = true;
         }
@@ -199,6 +200,10 @@ async function loadOlderMessages() {
 
         const newScrollHeight = messagesContainer.scrollHeight;
         messagesContainer.scrollTop = newScrollHeight - previousScrollHeight;
+
+        isLoadingOlderMessages = false;
+        fillHistoryIfNotScrollable();
+        return;
     } catch (error) {
         console.error("Error al cargar mensajes anteriores:", error);
         loadingIndicator.remove();
@@ -207,10 +212,19 @@ async function loadOlderMessages() {
     }
 }
 
-// Disparar la carga de mensajes anteriores al acercarse al tope del historial
+// Si el historial cargado no llena el alto visible del chat, no hay nada que
+// scrollear y el evento 'scroll' nunca se dispara. Esta función revisa eso y,
+// si aún hay mensajes disponibles, carga otra tanda automáticamente hasta que
+// el contenido llene el espacio (o ya no queden mensajes anteriores).
+function fillHistoryIfNotScrollable() {
+    if (!messagesContainer || noMoreOlderMessages || isLoadingOlderMessages) return;
+    if (messagesContainer.scrollHeight <= messagesContainer.clientHeight) {
+        loadOlderMessages();
+    }
+}
 if (messagesContainer) {
     messagesContainer.addEventListener('scroll', () => {
-        if (messagesContainer.scrollTop < 2) {
+        if (messagesContainer.scrollTop < 40) {
             loadOlderMessages();
         }
     });
