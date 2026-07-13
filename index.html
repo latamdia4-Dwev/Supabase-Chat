@@ -21,22 +21,24 @@
             </div>
         </div>
 
-        <!-- PANEL DE BÚSQUEDA Y REPRODUCCIÓN DE RADIO -->
+        <!-- BARRA DE REPRODUCCIÓN PERSISTENTE (solo aparece cuando hay una estación sonando) -->
+        <div class="music-player-bar" id="musicPlayerBar" style="display: none;">
+            <button id="playPauseBtn">▶</button>
+            <span class="current-track" id="currentTrackTitle">Ninguna estación seleccionada</span>
+            <div class="volume-control">
+                <button id="muteBtn" title="Silenciar">🔊</button>
+                <input type="range" id="volumeSlider" min="0" max="100" value="80" title="Volumen">
+            </div>
+            <audio id="audioPlayer"></audio>
+        </div>
+
+        <!-- PANEL DESPLEGABLE DE BÚSQUEDA (se cierra automáticamente al elegir una estación) -->
         <div class="music-panel" id="musicPanel">
             <div class="music-search-row">
                 <input type="text" id="musicInput" placeholder="Buscar estación de radio (ej. rock, jazz, noticias)...">
                 <button id="searchMusicBtn">Buscar</button>
             </div>
             <div class="radio-results" id="radioResults"></div>
-            <div class="music-player-bar">
-                <button id="playPauseBtn">▶</button>
-                <span class="current-track" id="currentTrackTitle">Ninguna estación seleccionada</span>
-                <div class="volume-control">
-                    <button id="muteBtn" title="Silenciar">🔊</button>
-                    <input type="range" id="volumeSlider" min="0" max="100" value="80" title="Volumen">
-                </div>
-                <audio id="audioPlayer"></audio>
-            </div>
         </div>
 
         <div class="chat-messages" id="chatMessages"></div>

@@ -19,6 +19,7 @@ const adminToggle = document.getElementById('adminToggle');
 // Referencias a los elementos del DOM (radio / música)
 const musicToggle = document.getElementById('musicToggle');
 const musicPanel = document.getElementById('musicPanel');
+const musicPlayerBar = document.getElementById('musicPlayerBar');
 const musicInput = document.getElementById('musicInput');
 const searchMusicBtn = document.getElementById('searchMusicBtn');
 const radioResults = document.getElementById('radioResults');

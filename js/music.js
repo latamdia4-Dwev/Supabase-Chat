@@ -88,6 +88,10 @@ function playRadioStation(station) {
         });
 
     if (currentTrackTitle) currentTrackTitle.textContent = station.name || 'Reproduciendo...';
+
+    // Mostrar la barra de reproducción persistente y cerrar el buscador
+    if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+    if (musicPanel) musicPanel.classList.remove('open');
 }
 
 // Botón de búsqueda

@@ -4,6 +4,12 @@
 // (que se carga antes que este archivo). NO se redeclaran aquí para evitar
 // "Identifier has already been declared" (SyntaxError que aborta todo el script).
 
+// --- PAGINACIÓN DEL HISTORIAL (carga perezosa hacia atrás) ---
+const MESSAGES_PAGE_SIZE = 3;
+let oldestMessageTimestamp = null;
+let isLoadingOlderMessages = false;
+let noMoreOlderMessages = false;
+
 // SOPORTE PARA PEGAR (PASTE) DESDE EL PORTAPAPELES
 document.addEventListener('paste', (event) => {
     const items = (event.clipboardData || event.originalEvent.clipboardData).items;
@@ -74,7 +80,8 @@ if (fileInput) {
 }
 
 // RENDERIZAR MENSAJES EN EL HISTORIAL (Con soporte de Video e Inyección de Hora)
-function renderMessage(msg) {
+// prepend=true inserta el mensaje al inicio (usado al cargar mensajes anteriores)
+function renderMessage(msg, prepend = false) {
     if (!messagesContainer) return;
 
     const isMe = msg.sender_id === mySessionId;
@@ -120,25 +127,93 @@ function renderMessage(msg) {
     deleteBtn.onclick = () => deleteMessage(msg.id);
     msgDiv.appendChild(deleteBtn);
 
-    messagesContainer.appendChild(msgDiv);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    if (prepend) {
+        messagesContainer.insertBefore(msgDiv, messagesContainer.firstChild);
+    } else {
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 }
 
-// CARGAR HISTORIAL DESDE LA TABLA SUPABASE
+// CARGAR SOLO LOS ÚLTIMOS MENSAJES AL ABRIR EL CHAT
 async function loadInitialMessages() {
     try {
         const { data, error } = await supabaseClient
             .from('messages')
             .select('*')
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE);
 
         if (error) throw error;
 
         messagesContainer.innerHTML = '';
-        if (data) data.forEach(msg => renderMessage(msg));
+
+        if (data && data.length > 0) {
+            const ordered = data.slice().reverse(); // de más antiguo a más reciente
+            ordered.forEach(msg => renderMessage(msg));
+            oldestMessageTimestamp = ordered[0].created_at;
+            noMoreOlderMessages = data.length < MESSAGES_PAGE_SIZE;
+        } else {
+            noMoreOlderMessages = true;
+        }
     } catch (error) {
         console.error("Error al cargar mensajes:", error);
     }
+}
+
+// CARGAR MENSAJES ANTERIORES AL DESLIZAR HACIA ARRIBA (scroll infinito hacia atrás)
+async function loadOlderMessages() {
+    if (isLoadingOlderMessages || noMoreOlderMessages || !oldestMessageTimestamp || !messagesContainer) return;
+    isLoadingOlderMessages = true;
+
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'history-loading';
+    loadingIndicator.textContent = 'Cargando mensajes anteriores...';
+    messagesContainer.prepend(loadingIndicator);
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('messages')
+            .select('*')
+            .lt('created_at', oldestMessageTimestamp)
+            .order('created_at', { ascending: false })
+            .limit(MESSAGES_PAGE_SIZE);
+
+        if (error) throw error;
+
+        loadingIndicator.remove();
+
+        if (!data || data.length === 0) {
+            noMoreOlderMessages = true;
+            return;
+        }
+
+        // Guardamos la altura previa para mantener la posición visual del scroll
+        const previousScrollHeight = messagesContainer.scrollHeight;
+
+        const ordered = data.slice().reverse();
+        ordered.forEach(msg => renderMessage(msg, true));
+
+        oldestMessageTimestamp = ordered[0].created_at;
+        if (data.length < MESSAGES_PAGE_SIZE) noMoreOlderMessages = true;
+
+        const newScrollHeight = messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = newScrollHeight - previousScrollHeight;
+    } catch (error) {
+        console.error("Error al cargar mensajes anteriores:", error);
+        loadingIndicator.remove();
+    } finally {
+        isLoadingOlderMessages = false;
+    }
+}
+
+// Disparar la carga de mensajes anteriores al acercarse al tope del historial
+if (messagesContainer) {
+    messagesContainer.addEventListener('scroll', () => {
+        if (messagesContainer.scrollTop < 2) {
+            loadOlderMessages();
+        }
+    });
 }
 
 // ELIMINAR MENSAJE FÍSICO
