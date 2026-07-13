@@ -31,6 +31,10 @@
             <div class="music-player-bar">
                 <button id="playPauseBtn">▶</button>
                 <span class="current-track" id="currentTrackTitle">Ninguna estación seleccionada</span>
+                <div class="volume-control">
+                    <button id="muteBtn" title="Silenciar">🔊</button>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="80" title="Volumen">
+                </div>
                 <audio id="audioPlayer"></audio>
             </div>
         </div>

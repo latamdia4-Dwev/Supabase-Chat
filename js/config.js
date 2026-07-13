@@ -25,6 +25,8 @@ const radioResults = document.getElementById('radioResults');
 const currentTrackTitle = document.getElementById('currentTrackTitle');
 const audioPlayer = document.getElementById('audioPlayer');
 const playPauseBtn = document.getElementById('playPauseBtn');
+const volumeSlider = document.getElementById('volumeSlider');
+const muteBtn = document.getElementById('muteBtn');
 
 // Referencias a los elementos del DOM (lightbox)
 const lightboxModal = document.getElementById('lightboxModal');

@@ -6,6 +6,8 @@
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
 
 let isPlaying = false;
+let isMuted = false;
+let lastVolume = 0.8;
 
 async function searchRadioStations(query) {
     if (!radioResults) return;
@@ -127,5 +129,54 @@ if (playPauseBtn) {
 if (musicToggle && musicPanel) {
     musicToggle.addEventListener('click', () => {
         musicPanel.classList.toggle('open');
+    });
+}
+
+// --- CONTROL DE VOLUMEN ---
+function updateVolumeIcon(volume, muted) {
+    if (!muteBtn) return;
+    if (muted || volume === 0) {
+        muteBtn.textContent = '🔇';
+    } else if (volume < 0.5) {
+        muteBtn.textContent = '🔉';
+    } else {
+        muteBtn.textContent = '🔊';
+    }
+}
+
+// Volumen inicial (recuerda la última preferencia guardada)
+if (audioPlayer) {
+    const savedVolume = localStorage.getItem('radioVolume');
+    lastVolume = savedVolume !== null ? parseFloat(savedVolume) : 0.8;
+    audioPlayer.volume = lastVolume;
+    if (volumeSlider) volumeSlider.value = Math.round(lastVolume * 100);
+    updateVolumeIcon(lastVolume, false);
+}
+
+if (volumeSlider) {
+    volumeSlider.addEventListener('input', () => {
+        const value = parseInt(volumeSlider.value, 10) / 100;
+        if (audioPlayer) audioPlayer.volume = value;
+        isMuted = value === 0;
+        if (value > 0) lastVolume = value;
+        localStorage.setItem('radioVolume', value);
+        updateVolumeIcon(value, isMuted);
+    });
+}
+
+if (muteBtn) {
+    muteBtn.addEventListener('click', () => {
+        if (!audioPlayer) return;
+        if (isMuted) {
+            audioPlayer.volume = lastVolume;
+            if (volumeSlider) volumeSlider.value = Math.round(lastVolume * 100);
+            isMuted = false;
+        } else {
+            lastVolume = audioPlayer.volume > 0 ? audioPlayer.volume : lastVolume;
+            audioPlayer.volume = 0;
+            if (volumeSlider) volumeSlider.value = 0;
+            isMuted = true;
+        }
+        updateVolumeIcon(audioPlayer.volume, isMuted);
     });
 }

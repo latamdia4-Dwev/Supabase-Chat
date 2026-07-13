@@ -455,6 +455,33 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.volume-control button {
+    background: none;
+    border: none;
+    color: var(--text-msg-received);
+    font-size: 1em;
+    cursor: pointer;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding: 0 2px;
+}
+
+.volume-control input[type="range"] {
+    width: 70px;
+    accent-color: #3ecf8e;
+    cursor: pointer;
 }
 
 /* ANIMACIONES */
