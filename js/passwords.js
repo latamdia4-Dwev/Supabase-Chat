@@ -9,4 +9,4 @@
 // (ver js/lock.js), que sí es seguro contra F12/consola.
 
 // Contraseña para activar el Modo Administrador (botón 🔑, permite borrar mensajes)
-const ADMIN_PASSWORD = "admin123";
+const ADMIN_PASSWORD = "admintpmarce";
