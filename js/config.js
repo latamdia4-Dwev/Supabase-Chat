@@ -2,8 +2,24 @@
 const SUPABASE_URL = "https://xftmgzrkqhuzoymvkoqp.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdG1nenJrcWh1em95bXZrb3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDU4NDcsImV4cCI6MjA5ODU4MTg0N30.CytrKW-eWdFwRxS5DHL432B1Fa5sklewtd_DpMLWs0Q";
 
-// Inicialización única de la instancia global de Supabase
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Inicialización única de la instancia global de Supabase.
+// persistSession: false y autoRefreshToken: false hacen que la sesión NUNCA
+// se guarde en el navegador (localStorage). Esto significa que al recargar
+// la página, cerrar la pestaña o el navegador, la sesión desaparece y
+// siempre habrá que volver a iniciar sesión con la contraseña.
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false
+    }
+});
+
+// Correo interno fijo para el login del chat (no es secreto, es solo un
+// identificador). Debes crear UNA cuenta con este correo exacto en tu panel
+// de Supabase (Authentication > Users), con la contraseña que tú quieras.
+// Cuando más adelante quieras chats privados con varias personas, aquí se
+// puede volver a agregar un campo de correo real en vez de este valor fijo.
+const CHAT_LOGIN_EMAIL = "chat@tuapp.com";
 
 // Referencias a los elementos del DOM (chat)
 const chatContainer = document.getElementById('chatContainer');

@@ -11,7 +11,7 @@
 const INITIAL_MESSAGES_COUNT = 0;
 
 // Cuántos mensajes se cargan cada vez que se pulsa "Cargar mensajes anteriores".
-const MESSAGES_PAGE_SIZE = 2;
+const MESSAGES_PAGE_SIZE = 20;
 
 let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
@@ -90,6 +90,7 @@ if (fileInput) {
 // prepend=true inserta el mensaje al inicio (usado al cargar mensajes anteriores)
 function renderMessage(msg, prepend = false) {
     if (!messagesContainer) return;
+    if (msg.hidden) return; // No mostrar mensajes ocultados por el administrador
 
     const isMe = msg.sender_id === mySessionId;
     const msgDiv = document.createElement('div');
@@ -151,6 +152,7 @@ async function loadInitialMessages() {
             const { data, error } = await supabaseClient
                 .from('messages')
                 .select('*')
+                .eq('hidden', false)
                 .order('created_at', { ascending: false })
                 .limit(INITIAL_MESSAGES_COUNT);
 
@@ -193,6 +195,7 @@ async function loadOlderMessages() {
         const { data, error } = await supabaseClient
             .from('messages')
             .select('*')
+            .eq('hidden', false)
             .lt('created_at', oldestMessageTimestamp)
             .order('created_at', { ascending: false })
             .limit(MESSAGES_PAGE_SIZE);
@@ -207,12 +210,18 @@ async function loadOlderMessages() {
         // Guardamos la altura previa para mantener la posición visual del scroll
         const previousScrollHeight = messagesContainer.scrollHeight;
 
-        // Eliminamos el reverse() para que el apilamiento (prepend) quede en el orden correcto
+        // IMPORTANTE: NO se invierte el array aquí. `data` ya viene en orden
+        // descendente (más reciente primero). Como renderMessage(msg, true)
+        // inserta cada uno como nuevo primer hijo (insertBefore firstChild),
+        // recorrer `data` en su orden original (descendente) hace que terminen
+        // apilados correctamente de más viejo (arriba) a más reciente (abajo).
+        // Si se invertía antes con .reverse(), se producía una doble inversión
+        // que desordenaba la conversación.
         data.forEach(msg => renderMessage(msg, true));
 
-        // Como no invertimos el array, el mensaje más antiguo de esta carga es el último elemento
+        // El mensaje más viejo del lote es el ÚLTIMO elemento de `data`
+        // (por venir en orden descendente), no el primero.
         oldestMessageTimestamp = data[data.length - 1].created_at;
-
         if (data.length < MESSAGES_PAGE_SIZE) noMoreOlderMessages = true;
 
         const newScrollHeight = messagesContainer.scrollHeight;
@@ -251,20 +260,21 @@ if (messagesContainer) {
     });
 }
 
-// ELIMINAR MENSAJE FÍSICO
+// OCULTAR MENSAJE (no lo borra de la base de datos, solo lo marca como oculto
+// para que deje de mostrarse en la vista de todos)
 async function deleteMessage(id) {
     if (!isAdmin) return;
-    if (!confirm('¿Deseas eliminar este mensaje de forma permanente?')) return;
+    if (!confirm('¿Deseas ocultar este mensaje de la vista?')) return;
 
     try {
         const { error } = await supabaseClient
             .from('messages')
-            .delete()
+            .update({ hidden: true })
             .eq('id', id);
         if (error) throw error;
     } catch (error) {
         console.error(error);
-        alert('Error al intentar eliminar el registro.');
+        alert('Error al intentar ocultar el mensaje.');
     }
 }
 
@@ -285,6 +295,10 @@ function flushPendingMessages() {
 supabaseClient
     .channel('schema-db-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
+        // Si ya se renderizó localmente al enviarlo (ver sendMessage), no lo
+        // dupliques cuando Realtime lo entregue de vuelta.
+        if (document.getElementById(`msg-${payload.new.id}`)) return;
+
         if (isChatCurrentlyHidden()) {
             pendingMessagesWhileHidden.push(payload.new);
         } else {
@@ -298,6 +312,15 @@ supabaseClient
         // Si el mensaje eliminado estaba en la cola de pendientes (llegó y se borró
         // mientras el chat estaba oculto), también se descarta de ahí.
         pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== deletedId);
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
+        // Cuando un mensaje se marca como oculto (hidden: true), se quita de
+        // la vista de todos al instante, sin recargar nada.
+        if (payload.new.hidden) {
+            const el = document.getElementById(`msg-${payload.new.id}`);
+            if (el) el.remove();
+            pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== payload.new.id);
+        }
     })
     .subscribe();
 
@@ -316,10 +339,12 @@ async function sendMessage() {
 
     try {
         if (queueFiles.length === 0) {
-            const { error } = await supabaseClient
+            const { data, error } = await supabaseClient
                 .from('messages')
-                .insert([{ text: text, sender_id: mySessionId }]);
+                .insert([{ text: text, sender_id: mySessionId }])
+                .select();
             if (error) throw error;
+            if (data && data[0]) renderMessage(data[0]);
         } else {
             for (let i = 0; i < queueFiles.length; i++) {
                 const file = queueFiles[i];
@@ -339,11 +364,13 @@ async function sendMessage() {
                 const imageUrl = urlData.publicUrl;
                 const currentText = (i === 0) ? text : '';
 
-                const { error: insertError } = await supabaseClient
+                const { data: insertData, error: insertError } = await supabaseClient
                     .from('messages')
-                    .insert([{ text: currentText, image_url: imageUrl, sender_id: mySessionId }]);
+                    .insert([{ text: currentText, image_url: imageUrl, sender_id: mySessionId }])
+                    .select();
 
                 if (insertError) throw insertError;
+                if (insertData && insertData[0]) renderMessage(insertData[0]);
             }
         }
 

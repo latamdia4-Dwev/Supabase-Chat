@@ -429,6 +429,26 @@ body {
 }
 
 /* PANTALLA DE BLOQUEO POR CONTRASEÑA */
+/* REFUERZO DE SEGURIDAD VISUAL: mientras el chat-container tenga la clase
+   .locked, estos elementos quedan realmente ocultos (display: none), no solo
+   tapados por el overlay. Así, si alguien intenta "saltarse" el candado
+   quitando el overlay desde la consola (F12), no encuentra nada debajo:
+   el formulario, el historial y los paneles de música siguen sin mostrarse
+   hasta que .locked se quite de verdad (lo cual solo pasa tras un login
+   válido en lock.js).
+   RECUERDA: esto es una capa extra de fricción del lado del cliente, NO
+   reemplaza la seguridad real, que depende de tener Row Level Security
+   activo en Supabase. Sin RLS, los datos siguen siendo accesibles vía
+   supabaseClient directamente desde la consola, sin tocar el DOM. */
+.chat-container.locked .chat-messages,
+.chat-container.locked .chat-form,
+.chat-container.locked .preview-container,
+.chat-container.locked .music-player-bar,
+.chat-container.locked .music-panel,
+.chat-container.locked .load-more-bar {
+    display: none !important;
+}
+
 .lock-overlay {
     display: none;
     position: absolute;

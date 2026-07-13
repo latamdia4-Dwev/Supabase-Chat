@@ -11,7 +11,7 @@
 </head>
 
 <body>
-    <div class="chat-container" id="chatContainer">
+    <div class="chat-container locked" id="chatContainer">
         <div class="chat-header">
             <button id="adminToggle">🔑</button>
             <span>Supabase Chat Pro</span>
@@ -54,13 +54,13 @@
             <button id="sendBtn" type="button">Enviar</button>
         </form>
 
-        <!-- PANTALLA DE BLOQUEO POR CONTRASEÑA (cubre el chat al cargar y al ocultarlo) -->
+        <!-- PANTALLA DE BLOQUEO: login real con Supabase Auth (solo contraseña) -->
         <div class="lock-overlay" id="lockOverlay" style="display: flex;">
             <div class="lock-box">
                 <div class="lock-icon">🔒</div>
                 <p class="lock-title">Chat protegido</p>
                 <input type="password" id="lockPasswordInput" placeholder="Contraseña" autocomplete="off">
-                <button id="lockSubmitBtn">Desbloquear</button>
+                <button id="lockSubmitBtn">Entrar</button>
                 <p class="lock-error" id="lockError" style="display: none;">Contraseña incorrecta.</p>
             </div>
         </div>
