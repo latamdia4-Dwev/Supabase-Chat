@@ -18,19 +18,61 @@ let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
 
 // SOPORTE PARA PEGAR (PASTE) DESDE EL PORTAPAPELES
-document.addEventListener('paste', (event) => {
+document.addEventListener('paste', async (event) => {
     const clipboardData = event.clipboardData || event.originalEvent.clipboardData;
     if (!clipboardData) return;
     const items = clipboardData.items;
+    let handledLegacy = false;
+    let sawFileItemButEmpty = false;
 
+    // Método clásico (funciona bien para imágenes y videos pequeños)
     for (let i = 0; i < items.length; i++) {
         if (items[i].kind === 'file') {
             const file = items[i].getAsFile();
-            if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
+            if (file && file.size > 0 && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
                 queueFiles.push(file);
                 updateFilePreview();
+                handledLegacy = true;
+            } else if (file) {
+                sawFileItemButEmpty = true;
             }
         }
+    }
+
+    if (handledLegacy) return;
+
+    // Respaldo con la API moderna del portapapeles: el método clásico de
+    // arriba a veces entrega el archivo vacío/incompleto cuando es grande
+    // (típico en videos de captura de pantalla). Si eso pasó, lo intentamos
+    // de nuevo con navigator.clipboard.read(), que maneja mejor binarios grandes.
+    if (navigator.clipboard && navigator.clipboard.read) {
+        try {
+            const clipboardItems = await navigator.clipboard.read();
+            let handledModern = false;
+
+            for (const clipboardItem of clipboardItems) {
+                for (const type of clipboardItem.types) {
+                    if (type.startsWith('image/') || type.startsWith('video/')) {
+                        const blob = await clipboardItem.getType(type);
+                        if (blob && blob.size > 0) {
+                            const extension = type.split('/')[1] || 'dat';
+                            const file = new File([blob], `pegado_${Date.now()}.${extension}`, { type });
+                            queueFiles.push(file);
+                            updateFilePreview();
+                            handledModern = true;
+                        }
+                    }
+                }
+            }
+
+            if (!handledModern && sawFileItemButEmpty) {
+                alert('El portapapeles contiene un video/imagen, pero llegó vacío (0 bytes) tanto por el método clásico como por el moderno. Es probable que sea un límite del navegador con archivos grandes copiados por esta herramienta.');
+            }
+        } catch (err) {
+            alert('No se pudo leer el portapapeles con la API moderna. Error: ' + (err && err.message ? err.message : err));
+        }
+    } else if (sawFileItemButEmpty) {
+        alert('El portapapeles contiene un archivo, pero llegó vacío (0 bytes), y este navegador no soporta el método de respaldo (navigator.clipboard.read). Intenta con Chrome de escritorio actualizado.');
     }
 });
 
