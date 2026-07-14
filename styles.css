@@ -360,6 +360,41 @@ body {
     max-height: 300px;
 }
 
+.music-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0 10px;
+    flex-shrink: 0;
+}
+
+.music-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--text-msg-received);
+    opacity: 0.6;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 4px;
+    font-size: 0.78em;
+    cursor: pointer;
+}
+
+.music-tab.active {
+    opacity: 1;
+    color: #3ecf8e;
+    border-bottom: 2px solid #3ecf8e;
+    font-weight: bold;
+}
+
+.music-hint {
+    font-size: 0.72em;
+    opacity: 0.55;
+    color: var(--text-msg-received);
+    text-align: center;
+    margin: 4px 0 0 0;
+    padding: 0 10px;
+}
+
 .music-search-row {
     display: flex;
     gap: 8px;
@@ -449,6 +484,51 @@ body {
     display: none !important;
 }
 
+/* BAJAR BRILLO RÁPIDO DE TODA LA PÁGINA: a diferencia del candado (que exige
+   contraseña), esto es solo un ajuste visual instantáneo con un clic, para
+   que la pantalla se vea más discreta/apagada sin dejar de ser legible
+   (como el filtro de brillo de una extensión de estilos). Se aplica un
+   filtro CSS a <html> completo (toda la página, no solo el chat). */
+html.brightness-dimmed {
+    filter: brightness(var(--dim-brightness, 0.45));
+    transition: filter 0.15s ease;
+}
+
+.floating-dim-controls {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid #333;
+    border-radius: 24px;
+    padding: 4px 10px 4px 4px;
+}
+
+.floating-dim-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 1.15em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#dimIntensitySlider {
+    width: 70px;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+}
+
 .lock-overlay {
     display: none;
     position: absolute;
@@ -481,6 +561,14 @@ body {
     color: #fff;
     font-weight: bold;
     margin: 0 0 6px 0;
+}
+
+#lockForm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
 }
 
 .lock-box input {

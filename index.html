@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supabase Chat Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20250714">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -24,7 +24,9 @@
 
         <!-- BARRA DE REPRODUCCIÓN PERSISTENTE (solo aparece cuando hay una estación sonando) -->
         <div class="music-player-bar" id="musicPlayerBar" style="display: none;">
+            <button id="prevTrackBtn" title="Anterior">⏮</button>
             <button id="playPauseBtn">▶</button>
+            <button id="nextTrackBtn" title="Siguiente">⏭</button>
             <span class="current-track" id="currentTrackTitle">Ninguna estación seleccionada</span>
             <div class="volume-control">
                 <button id="muteBtn" title="Silenciar">🔊</button>
@@ -33,12 +35,17 @@
             <audio id="audioPlayer"></audio>
         </div>
 
-        <!-- PANEL DESPLEGABLE DE BÚSQUEDA (se cierra automáticamente al elegir una estación) -->
+        <!-- PANEL DESPLEGABLE DE BÚSQUEDA (se cierra automáticamente al elegir una estación/canción) -->
         <div class="music-panel" id="musicPanel">
+            <div class="music-tabs">
+                <button class="music-tab active" id="tabRadio" data-mode="radio">📻 Radio en vivo</button>
+                <button class="music-tab" id="tabSongs" data-mode="songs">🎵 Buscar canciones</button>
+            </div>
             <div class="music-search-row">
                 <input type="text" id="musicInput" placeholder="Buscar estación de radio (ej. rock, jazz, noticias)...">
                 <button id="searchMusicBtn">Buscar</button>
             </div>
+            <p class="music-hint" id="musicHint"></p>
             <div class="radio-results" id="radioResults"></div>
         </div>
 
@@ -59,8 +66,10 @@
             <div class="lock-box">
                 <div class="lock-icon">🔒</div>
                 <p class="lock-title">Chat protegido</p>
-                <input type="password" id="lockPasswordInput" placeholder="Contraseña" autocomplete="off">
-                <button id="lockSubmitBtn">Entrar</button>
+                <form id="lockForm" onsubmit="return false;">
+                    <input type="password" id="lockPasswordInput" placeholder="Contraseña" autocomplete="current-password">
+                    <button id="lockSubmitBtn" type="button">Entrar</button>
+                </form>
                 <p class="lock-error" id="lockError" style="display: none;">Contraseña incorrecta.</p>
             </div>
         </div>
@@ -73,12 +82,20 @@
         <span class="lightbox-hint">Rueda del mouse: zoom · Arrastrar: mover</span>
     </div>
 
-    <script src="js/passwords.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/lock.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/music.js"></script>
-    <script src="js/chat.js"></script>
+    <!-- CONTROL FLOTANTE DE BRILLO RÁPIDO: baja el brillo de TODA la página
+         (filtro CSS, no un overlay que tapa) para que se vea más discreta
+         sin dejar de ser legible. Vive fuera del chat, siempre visible. -->
+    <div class="floating-dim-controls">
+        <button id="dimToggleBtn" class="floating-dim-btn" title="Bajar brillo de la página">🌙</button>
+        <input type="range" id="dimIntensitySlider" min="20" max="100" value="45" title="Nivel de brillo">
+    </div>
+
+    <script src="js/passwords.js?v=20250714"></script>
+    <script src="js/config.js?v=20250714"></script>
+    <script src="js/lock.js?v=20250714"></script>
+    <script src="js/ui.js?v=20250714"></script>
+    <script src="js/music.js?v=20250714"></script>
+    <script src="js/chat.js?v=20250714"></script>
 </body>
 
 </html>

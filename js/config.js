@@ -32,7 +32,11 @@ const sendBtn = document.getElementById('sendBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
 const hideChatBtn = document.getElementById('hideChatBtn');
+const dimToggleBtn = document.getElementById('dimToggleBtn');
+const dimIntensitySlider = document.getElementById('dimIntensitySlider');
 const loadMoreBar = document.getElementById('loadMoreBar');
+const prevTrackBtn = document.getElementById('prevTrackBtn');
+const nextTrackBtn = document.getElementById('nextTrackBtn');
 
 // Referencias a los elementos del DOM (bloqueo por contraseña)
 const lockOverlay = document.getElementById('lockOverlay');
@@ -47,6 +51,9 @@ const musicPlayerBar = document.getElementById('musicPlayerBar');
 const musicInput = document.getElementById('musicInput');
 const searchMusicBtn = document.getElementById('searchMusicBtn');
 const radioResults = document.getElementById('radioResults');
+const tabRadio = document.getElementById('tabRadio');
+const tabSongs = document.getElementById('tabSongs');
+const musicHint = document.getElementById('musicHint');
 const currentTrackTitle = document.getElementById('currentTrackTitle');
 const audioPlayer = document.getElementById('audioPlayer');
 const playPauseBtn = document.getElementById('playPauseBtn');
