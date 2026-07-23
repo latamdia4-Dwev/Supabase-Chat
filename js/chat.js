@@ -131,6 +131,193 @@ if (fileInput) {
     });
 }
 
+// --- REACCIONES CON EMOJI (tabla message_reactions + auth.uid()) ---
+// Usa la tabla "message_reactions" (message_id, user_id, emoji) en vez de una
+// columna jsonb en "messages". La identidad de quién reaccionó es el usuario
+// real autenticado en Supabase (auth.uid()), NO el mySessionId aleatorio que
+// se usa para "sender_id" de los mensajes de este chat.
+//
+// currentUserId se llena con refreshCurrentUserId() al cargar el chat y
+// después de cada login exitoso (ver lock.js).
+let currentUserId = null;
+
+async function refreshCurrentUserId() {
+    try {
+        const { data, error } = await supabaseClient.auth.getUser();
+        if (error) throw error;
+        currentUserId = data && data.user ? data.user.id : null;
+    } catch (err) {
+        console.error('No se pudo obtener el usuario autenticado para reacciones:', err);
+        currentUserId = null;
+    }
+}
+
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+let openReactionPickerId = null;
+
+// Caché en memoria: { [messageId]: { [emoji]: [user_id, user_id, ...] } }
+// Se llena al cargar mensajes y se mantiene al día con Realtime.
+const messageReactionsCache = {};
+
+function addReactionToCache(messageId, emoji, userId) {
+    if (!messageReactionsCache[messageId]) messageReactionsCache[messageId] = {};
+    if (!messageReactionsCache[messageId][emoji]) messageReactionsCache[messageId][emoji] = [];
+    if (!messageReactionsCache[messageId][emoji].includes(userId)) {
+        messageReactionsCache[messageId][emoji].push(userId);
+    }
+}
+
+function removeReactionFromCache(messageId, emoji, userId) {
+    if (!messageReactionsCache[messageId] || !messageReactionsCache[messageId][emoji]) return;
+    messageReactionsCache[messageId][emoji] = messageReactionsCache[messageId][emoji].filter(id => id !== userId);
+    if (messageReactionsCache[messageId][emoji].length === 0) {
+        delete messageReactionsCache[messageId][emoji];
+    }
+}
+
+// Trae de Supabase las reacciones existentes de un lote de mensajes (por
+// ejemplo, justo después de renderizar una tanda del historial) y las pinta.
+async function loadReactionsForMessages(messageIds) {
+    if (!messageIds || messageIds.length === 0) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('message_reactions')
+            .select('message_id, user_id, emoji')
+            .in('message_id', messageIds);
+        if (error) throw error;
+
+        (data || []).forEach(r => addReactionToCache(r.message_id, r.emoji, r.user_id));
+
+        messageIds.forEach(id => {
+            const msgDiv = document.getElementById(`msg-${id}`);
+            if (msgDiv) renderReactions(msgDiv, id, messageReactionsCache[id] || {});
+        });
+    } catch (err) {
+        console.error('Error al cargar reacciones:', err);
+    }
+}
+
+// Cierra y quita del DOM cualquier selector de emojis abierto
+function closeReactionPicker() {
+    const existing = document.querySelector('.reaction-picker');
+    if (existing) existing.remove();
+    openReactionPickerId = null;
+}
+
+// Clic en cualquier otra parte de la página cierra el selector abierto
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('.reaction-picker') && !e.target.closest('.btn-react')) {
+        closeReactionPicker();
+    }
+});
+
+// Abre el selector de emojis flotando encima del botón 😊 del mensaje
+function openReactionPicker(msgId, anchorBtn) {
+    closeReactionPicker();
+
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+
+    REACTION_EMOJIS.forEach(emoji => {
+        const span = document.createElement('span');
+        span.textContent = emoji;
+        span.onclick = (e) => {
+            e.stopPropagation();
+            toggleReaction(msgId, emoji);
+        };
+        picker.appendChild(span);
+    });
+
+    anchorBtn.parentElement.appendChild(picker);
+    openReactionPickerId = msgId;
+}
+
+// Dibuja (o redibuja) las píldoras de reacciones de un mensaje ya en el DOM
+function renderReactions(msgDiv, msgId, reactions) {
+    let container = msgDiv.querySelector('.message-reactions');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'message-reactions';
+        const timeSpan = msgDiv.querySelector('.msg-time');
+        if (timeSpan) {
+            msgDiv.insertBefore(container, timeSpan);
+        } else {
+            msgDiv.appendChild(container);
+        }
+    }
+
+    container.innerHTML = '';
+    Object.entries(reactions || {})
+        .filter(([, users]) => users && users.length > 0)
+        .forEach(([emoji, users]) => {
+            const pill = document.createElement('span');
+            pill.className = 'reaction-pill' + (currentUserId && users.includes(currentUserId) ? ' mine' : '');
+            pill.textContent = `${emoji} ${users.length}`;
+            pill.title = 'Pulsa para quitar/agregar tu reacción';
+            pill.onclick = () => toggleReaction(msgId, emoji);
+            container.appendChild(pill);
+        });
+}
+
+// Agrega o quita la reacción del usuario autenticado a un mensaje: inserta o
+// borra la fila correspondiente en "message_reactions". El repintado real
+// llega por Realtime (ver el canal más abajo), no aquí directamente — así
+// todas las pestañas/dispositivos quedan sincronizados de la misma forma.
+async function toggleReaction(msgId, emoji) {
+    closeReactionPicker();
+
+    if (!currentUserId) {
+        alert('No se pudo identificar tu sesión para reaccionar. Intenta recargar el chat.');
+        return;
+    }
+
+    try {
+        const { data: existing, error: selError } = await supabaseClient
+            .from('message_reactions')
+            .select('id')
+            .eq('message_id', msgId)
+            .eq('user_id', currentUserId)
+            .eq('emoji', emoji)
+            .maybeSingle();
+        if (selError) throw selError;
+
+        if (existing) {
+            const { error: delError } = await supabaseClient
+                .from('message_reactions')
+                .delete()
+                .eq('id', existing.id);
+            if (delError) throw delError;
+        } else {
+            const { error: insError } = await supabaseClient
+                .from('message_reactions')
+                .insert([{ message_id: msgId, user_id: currentUserId, emoji: emoji }]);
+            if (insError) throw insError;
+        }
+    } catch (err) {
+        console.error('Error al reaccionar:', err);
+        alert('No se pudo guardar tu reacción (revisa que tu cuenta tenga permiso).');
+    }
+}
+
+// ESCUCHA REALTIME DE LA TABLA message_reactions (canal separado del de
+// "messages" de más abajo, para mantener el código de cada tabla aislado)
+supabaseClient
+    .channel('schema-db-changes-reactions')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions' }, payload => {
+        const { message_id, emoji, user_id } = payload.new;
+        addReactionToCache(message_id, emoji, user_id);
+        const msgDiv = document.getElementById(`msg-${message_id}`);
+        if (msgDiv) renderReactions(msgDiv, message_id, messageReactionsCache[message_id] || {});
+    })
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_reactions' }, payload => {
+        const { message_id, emoji, user_id } = payload.old;
+        removeReactionFromCache(message_id, emoji, user_id);
+        const msgDiv = document.getElementById(`msg-${message_id}`);
+        if (msgDiv) renderReactions(msgDiv, message_id, messageReactionsCache[message_id] || {});
+    })
+    .subscribe();
+
 // RENDERIZAR MENSAJES EN EL HISTORIAL (Con soporte de Video e Inyección de Hora)
 // prepend=true inserta el mensaje al inicio (usado al cargar mensajes anteriores)
 function renderMessage(msg, prepend = false) {
@@ -180,6 +367,26 @@ function renderMessage(msg, prepend = false) {
     deleteBtn.onclick = () => deleteMessage(msg.id);
     msgDiv.appendChild(deleteBtn);
 
+    // BOTÓN PARA REACCIONAR (abre el selector de emojis tipo Slack/WhatsApp)
+    const reactBtn = document.createElement('button');
+    reactBtn.className = 'btn-react';
+    reactBtn.textContent = '😊';
+    reactBtn.title = 'Reaccionar';
+    reactBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (openReactionPickerId === msg.id) {
+            closeReactionPicker();
+        } else {
+            openReactionPicker(msg.id, reactBtn);
+        }
+    };
+    msgDiv.appendChild(reactBtn);
+
+    // Pinta las reacciones que ya estén en caché para este mensaje (si el
+    // lote de mensajes recién se cargó, loadReactionsForMessages las trae
+    // después y vuelve a llamar a renderReactions).
+    renderReactions(msgDiv, msg.id, messageReactionsCache[msg.id] || {});
+
     if (prepend) {
         messagesContainer.insertBefore(msgDiv, messagesContainer.firstChild);
     } else {
@@ -206,6 +413,7 @@ async function loadInitialMessages() {
             if (data && data.length > 0) {
                 const ordered = data.slice().reverse(); // de más antiguo a más reciente
                 ordered.forEach(msg => renderMessage(msg));
+                loadReactionsForMessages(ordered.map(msg => msg.id));
                 oldestMessageTimestamp = ordered[0].created_at;
                 noMoreOlderMessages = data.length < INITIAL_MESSAGES_COUNT;
             } else {
@@ -263,6 +471,7 @@ async function loadOlderMessages() {
         // Si se invertía antes con .reverse(), se producía una doble inversión
         // que desordenaba la conversación.
         data.forEach(msg => renderMessage(msg, true));
+        loadReactionsForMessages(data.map(msg => msg.id));
 
         // El mensaje más viejo del lote es el ÚLTIMO elemento de `data`
         // (por venir en orden descendente), no el primero.
@@ -361,6 +570,8 @@ supabaseClient
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
         // Cuando un mensaje se marca como oculto (hidden: true), se quita de
         // la vista de todos al instante, sin recargar nada.
+        // (Las reacciones ya NO viven en esta tabla — se manejan aparte con
+        // su propio canal Realtime sobre "message_reactions", más arriba.)
         if (payload.new.hidden) {
             const el = document.getElementById(`msg-${payload.new.id}`);
             if (el) el.remove();
@@ -441,4 +652,5 @@ if (msgInput) {
 }
 
 // Inicializar al cargar el archivo
+refreshCurrentUserId();
 loadInitialMessages();

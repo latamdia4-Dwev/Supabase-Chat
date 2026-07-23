@@ -158,6 +158,85 @@ body {
     display: block;
 }
 
+/* BOTÓN PARA ABRIR EL SELECTOR DE REACCIONES (emoji) */
+.btn-react {
+    position: absolute;
+    top: 2px;
+    left: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95em;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+    line-height: 1;
+    padding: 2px;
+}
+
+.message:hover .btn-react,
+.message:focus-within .btn-react {
+    opacity: 0.85;
+}
+
+/* SELECTOR EMERGENTE DE EMOJIS (aparece sobre el mensaje al pulsar 😊) */
+.reaction-picker {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 6px;
+    background: var(--bg-preview);
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 6px 8px;
+    display: flex;
+    gap: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 20;
+}
+
+.reaction-picker span {
+    cursor: pointer;
+    font-size: 1.15em;
+    transition: transform 0.1s;
+    line-height: 1;
+}
+
+.reaction-picker span:hover {
+    transform: scale(1.3);
+}
+
+/* PÍLDORAS DE REACCIONES YA PUESTAS EN UN MENSAJE */
+.message-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 1px 7px;
+    font-size: 0.78em;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.6;
+}
+
+.reaction-pill:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.reaction-pill.mine {
+    background: rgba(62, 207, 142, 0.28);
+    border-color: #3ecf8e;
+}
+
 /* COLA DE VISTA PREVIA (PASTE & FILE INPUT) */
 .preview-container {
     display: flex;
@@ -273,7 +352,9 @@ body {
     width: 100%;
     height: 100%;
     background: rgba(0, 0, 0, 0.95);
-    z-index: 9999;
+    /* Por encima del control flotante de brillo (9999) para que el botón
+       de cerrar nunca quede tapado. */
+    z-index: 10001;
     display: none;
     justify-content: center;
     align-items: center;
@@ -296,14 +377,29 @@ body {
 
 .lightbox-close {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 16px;
+    right: 16px;
     color: #fff;
-    font-size: 35px;
+    font-size: 26px;
     font-weight: bold;
     cursor: pointer;
-    background: none;
-    border: none;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid #333;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 2;
+}
+
+/* Mientras el lightbox está abierto, el control flotante de brillo se
+   oculta por completo (ver ui.js) para que no vuelva a tapar el botón
+   de cerrar ni ningún otro control del visor. */
+.floating-dim-controls.hidden-by-lightbox {
+    display: none !important;
 }
 
 .lightbox-hint {

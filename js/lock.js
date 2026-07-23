@@ -90,6 +90,12 @@ async function attemptLogin() {
 
     hideLockScreen();
 
+    // Refresca el auth.uid() en caché (usado para saber quién reaccionó a
+    // cada mensaje) ahora que ya hay una sesión válida.
+    if (typeof refreshCurrentUserId === 'function') {
+        refreshCurrentUserId();
+    }
+
     // Vuelve a intentar cargar el historial ahora que ya hay una sesión válida
     if (typeof loadInitialMessages === 'function') {
         loadInitialMessages();

@@ -82,6 +82,20 @@ function openLightbox(url) {
     translateY = 0;
     updateLightboxTransform();
     lightboxModal.style.display = 'flex';
+
+    // Oculta el control flotante de brillo mientras el visor está abierto,
+    // para que nunca tape el botón de cerrar (antes ambos usaban el mismo
+    // z-index y el control de brillo, al estar después en el HTML, ganaba).
+    const dimControls = document.querySelector('.floating-dim-controls');
+    if (dimControls) dimControls.classList.add('hidden-by-lightbox');
+}
+
+function closeLightbox() {
+    lightboxModal.style.display = 'none';
+    isDragging = false;
+
+    const dimControls = document.querySelector('.floating-dim-controls');
+    if (dimControls) dimControls.classList.remove('hidden-by-lightbox');
 }
 
 function updateLightboxTransform() {
@@ -112,6 +126,21 @@ window.addEventListener('mouseup', () => {
     isDragging = false;
 });
 
-lightboxClose.addEventListener('click', () => {
-    lightboxModal.style.display = 'none';
+lightboxClose.addEventListener('click', closeLightbox);
+
+// Cerrar al hacer clic FUERA de la foto (el fondo oscuro del modal).
+// Se comprueba que el clic sea directamente sobre el fondo (e.target ===
+// lightboxModal) y no sobre la imagen ni sobre el botón de cerrar, para no
+// interferir con el arrastre/zoom de la imagen.
+lightboxModal.addEventListener('click', (e) => {
+    if (e.target === lightboxModal) {
+        closeLightbox();
+    }
+});
+
+// Cerrar con la tecla ESC, solo si el lightbox está abierto actualmente.
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightboxModal.style.display === 'flex') {
+        closeLightbox();
+    }
 });
