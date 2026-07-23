@@ -559,6 +559,136 @@ body {
     opacity: 0.7;
 }
 
+/* PANEL DE EMOJIS / STICKERS / GIFS PARA COMPONER MENSAJES */
+.emoji-toggle-btn {
+    font-size: 1.3em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.media-panel {
+    max-height: 0;
+    overflow: hidden;
+    background: var(--bg-preview);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    transition: max-height 0.25s ease;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.media-panel.open {
+    max-height: 260px;
+}
+
+.media-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0 10px;
+    flex-shrink: 0;
+}
+
+.media-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--text-msg-received);
+    opacity: 0.6;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 4px;
+    font-size: 0.78em;
+    cursor: pointer;
+}
+
+.media-tab.active {
+    opacity: 1;
+    color: #3ecf8e;
+    border-bottom: 2px solid #3ecf8e;
+    font-weight: bold;
+}
+
+.media-search-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    flex-shrink: 0;
+}
+
+.media-search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.9em;
+    outline: none;
+}
+
+.media-search-row button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.media-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.media-grid .emoji-item {
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    line-height: 1;
+}
+
+.media-grid .emoji-item:hover,
+.media-grid .sticker-item:hover {
+    background: rgba(62, 207, 142, 0.15);
+}
+
+.media-grid .sticker-item {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.media-grid .gif-item {
+    width: 104px;
+    height: 72px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.media-status {
+    width: 100%;
+    text-align: center;
+    color: var(--text-msg-received);
+    opacity: 0.7;
+    font-size: 0.85em;
+    padding: 10px;
+}
+
 /* PANTALLA DE BLOQUEO POR CONTRASEÑA */
 /* REFUERZO DE SEGURIDAD VISUAL: mientras el chat-container tenga la clase
    .locked, estos elementos quedan realmente ocultos (display: none), no solo

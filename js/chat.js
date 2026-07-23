@@ -640,6 +640,23 @@ async function sendMessage() {
     }
 }
 
+// ENVÍO RÁPIDO DE SOLO-IMAGEN (usado por stickers y GIFs desde
+// js/media-picker.js). Comparte la misma tabla y el mismo flujo de
+// renderizado que sendMessage(), para no duplicar esa lógica.
+async function sendQuickImageMessage(imageUrl) {
+    try {
+        const { data, error } = await supabaseClient
+            .from('messages')
+            .insert([{ text: '', image_url: imageUrl, sender_id: mySessionId }])
+            .select();
+        if (error) throw error;
+        if (data && data[0]) renderMessage(data[0]);
+    } catch (error) {
+        console.error('Error al enviar sticker/GIF:', error);
+        alert(`No se pudo enviar: ${error.message}`);
+    }
+}
+
 // Vinculación de gatillos de envío
 if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 if (msgInput) {

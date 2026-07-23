@@ -21,6 +21,12 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // puede volver a agregar un campo de correo real en vez de este valor fijo.
 const CHAT_LOGIN_EMAIL = "chat@tuapp.com";
 
+// Clave de la API pública de Giphy, usada por js/media-picker.js para buscar
+// GIFs. Consigue una gratis en https://developers.giphy.com/ (plan "Free" /
+// "Chat & Messaging") y pégala aquí. Sin una clave válida, la pestaña de
+// GIFs mostrará un error al buscar (emojis y stickers funcionan igual).
+const GIPHY_API_KEY = "TU_GIPHY_API_KEY_AQUI";
+
 // Referencias a los elementos del DOM (chat)
 const chatContainer = document.getElementById('chatContainer');
 const messagesContainer = document.getElementById('chatMessages');
@@ -59,6 +65,17 @@ const audioPlayer = document.getElementById('audioPlayer');
 const playPauseBtn = document.getElementById('playPauseBtn');
 const volumeSlider = document.getElementById('volumeSlider');
 const muteBtn = document.getElementById('muteBtn');
+
+// Referencias a los elementos del DOM (panel de emojis / stickers / GIFs)
+const emojiToggle = document.getElementById('emojiToggle');
+const mediaPanel = document.getElementById('mediaPanel');
+const tabEmoji = document.getElementById('tabEmoji');
+const tabSticker = document.getElementById('tabSticker');
+const tabGif = document.getElementById('tabGif');
+const gifSearchRow = document.getElementById('gifSearchRow');
+const gifInput = document.getElementById('gifInput');
+const searchGifBtn = document.getElementById('searchGifBtn');
+const mediaGrid = document.getElementById('mediaGrid');
 
 // Referencias a los elementos del DOM (lightbox)
 const lightboxModal = document.getElementById('lightboxModal');

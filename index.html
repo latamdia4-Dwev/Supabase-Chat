@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TP</title>
+    <title>Supabase Chat Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=20250714">
+    <link rel="stylesheet" href="styles.css?v=20260722">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -54,8 +54,24 @@
 
         <div class="chat-messages" id="chatMessages"></div>
         <div class="preview-container" id="previewContainer" style="display: none;"></div>
+
+        <!-- PANEL DE EMOJIS / STICKERS / GIFS PARA COMPONER MENSAJES -->
+        <div class="media-panel" id="mediaPanel">
+            <div class="media-tabs">
+                <button class="media-tab active" id="tabEmoji" data-mode="emoji">😀 Emojis</button>
+                <button class="media-tab" id="tabSticker" data-mode="sticker">🧩 Stickers</button>
+                <button class="media-tab" id="tabGif" data-mode="gif">🎞️ GIFs</button>
+            </div>
+            <div class="media-search-row" id="gifSearchRow" style="display: none;">
+                <input type="text" id="gifInput" placeholder="Buscar GIF...">
+                <button id="searchGifBtn">Buscar</button>
+            </div>
+            <div class="media-grid" id="mediaGrid"></div>
+        </div>
+
         <form class="chat-form" id="chatForm" onsubmit="return false;">
             <label for="fileInput" class="file-label">➕</label>
+            <button type="button" id="emojiToggle" class="emoji-toggle-btn" title="Emojis, stickers y GIFs">😀</button>
             <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
             <textarea id="msgInput" placeholder="Escribe un mensaje..." rows="1"></textarea>
             <button id="sendBtn" type="button">Enviar</button>
@@ -90,12 +106,13 @@
         <input type="range" id="dimIntensitySlider" min="20" max="100" value="45" title="Nivel de brillo">
     </div>
 
-    <script src="js/passwords.js?v=20250714"></script>
-    <script src="js/config.js?v=20250714"></script>
-    <script src="js/lock.js?v=20250714"></script>
-    <script src="js/ui.js?v=20250714"></script>
-    <script src="js/music.js?v=20250714"></script>
-    <script src="js/chat.js?v=20250714"></script>
+    <script src="js/passwords.js?v=20260722"></script>
+    <script src="js/config.js?v=20260722"></script>
+    <script src="js/lock.js?v=20260722"></script>
+    <script src="js/ui.js?v=20260722"></script>
+    <script src="js/music.js?v=20260722"></script>
+    <script src="js/chat.js?v=20260722"></script>
+    <script src="js/media-picker.js?v=20260722"></script>
 </body>
 
 </html>
