@@ -1,44 +1,71 @@
 // js/games.js
-// Panel de juegos embebidos vía miniplay.com/embed/* (permite iframe).
-// Agrega o quita juegos editando el array GAMES — solo necesitas el slug
-// de miniplay (parte final de la URL del embed).
+// Panel de juegos embebidos. Cada juego trae su propia 'url' de embed ya
+// armada, para poder mezclar fuentes distintas sin adivinar patrones:
+// - playpager.com/embed/*  → catálogo diseñado para embeberse en cualquier
+//   sitio de terceros, sin registro (https://playpager.com/embed-games/).
+// - codepen.io/*/embed/*   → función oficial de CodePen para embeber pens
+//   públicos (el autor lo habilita explícitamente al publicar el pen).
+// A diferencia de portales como Miniplay (que solo permiten iframes desde
+// dominios socios autorizados y redirigen a una página rota si tu dominio
+// no está en su lista), estas dos fuentes SÍ están pensadas para esto.
+// Agrega o quita juegos editando el array GAMES.
 
 const GAMES = [
     {
-        name: 'Ragdoll Archers',
+        name: 'Ajedrez',
+        icon: '♟️',
+        tag: 'Contra la máquina',
+        slug: 'chess',
+        url: 'https://playpager.com/embed/chess/index.html'
+    },
+    {
+        name: 'Damas',
+        icon: '⚫',
+        tag: 'Contra la máquina',
+        slug: 'checkers',
+        url: 'https://playpager.com/embed/checkers/index.html'
+    },
+    {
+        name: 'Othello / Reversi',
+        icon: '🔴',
+        tag: 'Contra la máquina',
+        slug: 'reversi',
+        url: 'https://playpager.com/embed/reversi/index.html'
+    },
+    {
+        name: 'Sopa de letras',
+        icon: '🔤',
+        tag: 'Puzzle',
+        slug: 'wordpuzzle',
+        url: 'https://playpager.com/embed/wordpuzzle/index.html'
+    },
+    {
+        name: 'Falling Cubes',
+        icon: '🧊',
+        tag: 'Arcade',
+        slug: 'cubes',
+        url: 'https://playpager.com/embed/cubes/index.html'
+    },
+    {
+        name: 'Solitario',
+        icon: '🃏',
+        tag: 'Cartas',
+        slug: 'solitaire',
+        url: 'https://playpager.com/embed/solitaire/index.html'
+    },
+    {
+        name: 'Sudoku',
+        icon: '🔢',
+        tag: 'Puzzle',
+        slug: 'sudoku',
+        url: 'https://playpager.com/embed/sudoku/index.html'
+    },
+    {
+        name: 'Archery Game',
         icon: '🏹',
-        tag: 'Acción · 1-2J',
-        slug: 'ragdoll-archers'
-    },
-    {
-        name: 'Bloxd.io',
-        icon: '🟫',
-        tag: 'Multijugador',
-        slug: 'bloxd-io'
-    },
-    {
-        name: 'Melon Sandbox',
-        icon: '🍉',
-        tag: 'Sandbox',
-        slug: 'melon-sandbox'
-    },
-    {
-        name: '2-3-4 Player Games',
-        icon: '🎲',
-        tag: 'Multijugador',
-        slug: '2-3-4-player-games'
-    },
-    {
-        name: 'Plants vs Zombies',
-        icon: '🌻',
-        tag: 'Estrategia',
-        slug: 'plants-vs-zombies'
-    },
-    {
-        name: 'Stick Archers Battle',
-        icon: '🪃',
-        tag: 'Acción · 2J',
-        slug: 'stick-archers-battle'
+        tag: 'Acción · CodePen',
+        slug: 'archery-game',
+        url: 'https://codepen.io/Toky/embed/ZVoaGm?default-tab=result&theme-id=dark'
     },
 ];
 
@@ -97,7 +124,7 @@ function loadGame(game) {
     if (gameList) gameList.style.display = 'none';
 
     // Load iframe
-    gameFrame.src = `https://www.miniplay.com/embed/${game.slug}`;
+    gameFrame.src = game.url;
     gameFrameWrap.style.display = 'block';
 
     // Add a "← Juegos" back button if not already there
@@ -132,8 +159,7 @@ function openGamePanel() {
     if (!gamePanel) return;
     gamePanel.style.display = 'flex';
     buildGameList();
-    // Auto-load Ragdoll Archers on first open
-    if (!activeGameSlug) loadGame(GAMES[0]);
+    // (Ya no carga un juego automáticamente: abre mostrando la lista)
 }
 
 function closeGamePanel() {
