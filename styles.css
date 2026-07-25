@@ -102,7 +102,7 @@ body {
 
 /* BURBUJAS DE MENSAJE */
 .message {
-    padding: 10px 14px;
+    padding: 10px 26px 10px 14px;
     border-radius: 8px;
     max-width: 80%;
     word-wrap: break-word;
@@ -161,8 +161,8 @@ body {
 /* BOTÓN PARA ABRIR EL SELECTOR DE REACCIONES (emoji) */
 .btn-react {
     position: absolute;
-    top: 2px;
-    left: 6px;
+    bottom: 2px;
+    right: 6px;
     background: none;
     border: none;
     cursor: pointer;
@@ -183,7 +183,7 @@ body {
 .reaction-picker {
     position: absolute;
     bottom: 100%;
-    left: 0;
+    right: 0;
     margin-bottom: 6px;
     background: var(--bg-preview);
     border: 1px solid #333;
@@ -342,6 +342,12 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+.chat-form textarea:disabled,
+.chat-form button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 /* VISOR MODAL (LIGHTBOX) */
@@ -517,6 +523,30 @@ body {
     padding: 0 16px;
     font-weight: bold;
     cursor: pointer;
+}
+
+.music-upload-row {
+    display: none;
+    padding: 10px;
+    flex-shrink: 0;
+}
+
+.music-upload-label {
+    display: inline-block;
+    background: #3ecf8e;
+    color: #fff;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.85em;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.radio-icon.uploaded-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
 }
 
 .radio-results {

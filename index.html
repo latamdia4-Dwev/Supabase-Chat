@@ -40,10 +40,15 @@
             <div class="music-tabs">
                 <button class="music-tab active" id="tabRadio" data-mode="radio">📻 Radio en vivo</button>
                 <button class="music-tab" id="tabSongs" data-mode="songs">🎵 Buscar canciones</button>
+                <button class="music-tab" id="tabUploads" data-mode="uploads">📤 Mi música</button>
             </div>
-            <div class="music-search-row">
+            <div class="music-search-row" id="musicSearchRow">
                 <input type="text" id="musicInput" placeholder="Buscar estación de radio (ej. rock, jazz, noticias)...">
                 <button id="searchMusicBtn">Buscar</button>
+            </div>
+            <div class="music-upload-row" id="musicUploadRow">
+                <label for="uploadMusicInput" class="music-upload-label">⬆️ Subir canción (mp3, wav, ogg...)</label>
+                <input type="file" id="uploadMusicInput" accept="audio/*" multiple style="display: none;">
             </div>
             <p class="music-hint" id="musicHint"></p>
             <div class="radio-results" id="radioResults"></div>

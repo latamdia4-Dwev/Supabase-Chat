@@ -60,27 +60,169 @@ function updateMediaSessionMetadata(title, subtitle, artworkUrl) {
     });
 }
 
-// --- CAMBIO DE PESTAÑA (Radio / Canciones) ---
+// --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
 function setMusicMode(mode) {
     currentMusicMode = mode;
     if (radioResults) radioResults.innerHTML = '';
     if (musicInput) musicInput.value = '';
 
+    if (tabRadio) tabRadio.classList.toggle('active', mode === 'radio');
+    if (tabSongs) tabSongs.classList.toggle('active', mode === 'songs');
+    if (tabUploads) tabUploads.classList.toggle('active', mode === 'uploads');
+
+    // El buscador (radio/canciones) y el botón de subir (mi música) son
+    // mutuamente excluyentes: cada pestaña usa uno de los dos.
+    if (musicSearchRow) musicSearchRow.style.display = mode === 'uploads' ? 'none' : 'flex';
+    if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
+
     if (mode === 'radio') {
-        if (tabRadio) tabRadio.classList.add('active');
-        if (tabSongs) tabSongs.classList.remove('active');
         if (musicInput) musicInput.placeholder = 'Buscar estación de radio (ej. rock, jazz, noticias)...';
         if (musicHint) musicHint.textContent = '';
-    } else {
-        if (tabSongs) tabSongs.classList.add('active');
-        if (tabRadio) tabRadio.classList.remove('active');
+    } else if (mode === 'songs') {
         if (musicInput) musicInput.placeholder = 'Buscar canción o artista...';
         if (musicHint) musicHint.textContent = 'Solo vista previa de 30 segundos por canción (límite de derechos de autor).';
+    } else {
+        if (musicHint) musicHint.textContent = 'Sube tus propios archivos de audio y reprodúcelos aquí. Visibles para todos en el chat.';
+        loadUploadedTracks();
     }
 }
 
 if (tabRadio) tabRadio.addEventListener('click', () => setMusicMode('radio'));
 if (tabSongs) tabSongs.addEventListener('click', () => setMusicMode('songs'));
+if (tabUploads) tabUploads.addEventListener('click', () => setMusicMode('uploads'));
+
+// --- MI MÚSICA: ARCHIVOS DE AUDIO SUBIDOS POR TI (Supabase Storage) ---
+// Requiere un bucket público llamado "music-uploads" en Supabase Storage
+// (Storage → New bucket → nombre "music-uploads", marcar "Public bucket").
+// No usa ninguna tabla nueva: la lista de canciones sale directo del propio
+// bucket con supabaseClient.storage.from(...).list(), igual que ya se hace
+// con "chat-images" para fotos y videos del chat.
+const MUSIC_UPLOADS_BUCKET = 'music-uploads';
+
+// Quita el prefijo "<timestamp>_" que se le agrega al nombre real del
+// archivo al subirlo, para mostrar algo legible en la lista.
+function cleanUploadedFileName(rawName) {
+    return rawName.replace(/^\d+_/, '');
+}
+
+async function loadUploadedTracks() {
+    if (!radioResults) return;
+    radioResults.innerHTML = '<div class="radio-status">🔎 Cargando tu música...</div>';
+
+    try {
+        const { data, error } = await supabaseClient
+            .storage
+            .from(MUSIC_UPLOADS_BUCKET)
+            .list('', { sortBy: { column: 'created_at', order: 'desc' } });
+        if (error) throw error;
+
+        // Storage a veces incluye una entrada de "carpeta vacía" (.emptyFolderPlaceholder)
+        const audioFiles = (data || []).filter(f => f.name && !f.name.startsWith('.'));
+        renderUploadedTracks(audioFiles);
+    } catch (err) {
+        console.error('Error al listar música subida:', err);
+        radioResults.innerHTML = '<div class="radio-status">⚠️ No se pudo cargar tu música. Revisa que exista el bucket público "music-uploads" en Supabase Storage.</div>';
+    }
+}
+
+function renderUploadedTracks(files) {
+    radioResults.innerHTML = '';
+
+    if (files.length === 0) {
+        radioResults.innerHTML = '<div class="radio-status">Todavía no subiste ninguna canción. Usa el botón ⬆️ de arriba.</div>';
+        currentResultsList = [];
+        return;
+    }
+
+    const tracks = files.map(file => {
+        const { data: urlData } = supabaseClient.storage
+            .from(MUSIC_UPLOADS_BUCKET)
+            .getPublicUrl(file.name);
+        return {
+            name: file.name,
+            displayName: cleanUploadedFileName(file.name),
+            url: urlData.publicUrl
+        };
+    });
+
+    currentResultsList = tracks;
+
+    tracks.forEach((track, index) => {
+        const item = document.createElement('div');
+        item.className = 'radio-item';
+
+        const icon = document.createElement('span');
+        icon.className = 'radio-icon uploaded-icon';
+        icon.textContent = '🎵';
+
+        const info = document.createElement('div');
+        info.className = 'radio-info';
+
+        const name = document.createElement('span');
+        name.className = 'radio-name';
+        name.textContent = track.displayName;
+        info.appendChild(name);
+
+        const playIcon = document.createElement('span');
+        playIcon.className = 'radio-play-icon';
+        playIcon.textContent = '▶';
+
+        item.appendChild(icon);
+        item.appendChild(info);
+        item.appendChild(playIcon);
+
+        item.onclick = () => playUploadedTrack(track, index);
+        radioResults.appendChild(item);
+    });
+}
+
+function playUploadedTrack(track, index = -1) {
+    if (!audioPlayer) return;
+    if (index >= 0) currentResultIndex = index;
+    audioPlayer.src = track.url;
+    audioPlayer.play()
+        .then(() => {
+            isPlaying = true;
+            if (playPauseBtn) playPauseBtn.textContent = '⏸';
+        })
+        .catch(err => {
+            console.error('Error al reproducir el archivo subido:', err);
+            if (currentTrackTitle) currentTrackTitle.textContent = 'No se pudo reproducir este archivo';
+        });
+
+    if (currentTrackTitle) currentTrackTitle.textContent = track.displayName || 'Reproduciendo...';
+    updateMediaSessionMetadata(track.displayName, 'Subido al chat', null);
+
+    if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+    if (musicPanel) musicPanel.classList.remove('open');
+}
+
+// Selección de archivo(s) para subir
+if (uploadMusicInput) {
+    uploadMusicInput.addEventListener('change', async () => {
+        const files = Array.from(uploadMusicInput.files || []);
+        if (files.length === 0) return;
+
+        radioResults.innerHTML = '<div class="radio-status">⬆️ Subiendo...</div>';
+
+        try {
+            for (const file of files) {
+                const fileName = `${Date.now()}_${file.name}`;
+                const { error } = await supabaseClient.storage
+                    .from(MUSIC_UPLOADS_BUCKET)
+                    .upload(fileName, file);
+                if (error) throw error;
+            }
+            await loadUploadedTracks();
+        } catch (err) {
+            console.error('Error al subir música:', err);
+            alert(`No se pudo subir el archivo: ${err.message}`);
+            loadUploadedTracks();
+        } finally {
+            uploadMusicInput.value = '';
+        }
+    });
+}
 
 function runSearch(query) {
     if (currentMusicMode === 'radio') {
@@ -314,8 +456,10 @@ function playByIndex(index) {
 
     if (currentMusicMode === 'radio') {
         playRadioStation(item, safeIndex);
-    } else {
+    } else if (currentMusicMode === 'songs') {
         playSongPreview(item, safeIndex);
+    } else {
+        playUploadedTrack(item, safeIndex);
     }
 }
 

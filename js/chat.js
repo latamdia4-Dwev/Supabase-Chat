@@ -589,9 +589,22 @@ if (msgInput) {
 }
 
 // ENVIAR MENSAJE CON LOGICA DE SUBIDA MULTIMEDIA A STORAGE
+// isSending bloquea reentradas (doble clic / Enter+clic) mientras el
+// insert/upload a Supabase sigue en curso, para no duplicar el mensaje.
+let isSending = false;
+
 async function sendMessage() {
+    if (isSending) return;
+
     const text = msgInput.value.trim();
     if (!text && queueFiles.length === 0) return;
+
+    isSending = true;
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = '…';
+    }
+    if (msgInput) msgInput.disabled = true;
 
     try {
         if (queueFiles.length === 0) {
@@ -637,6 +650,16 @@ async function sendMessage() {
     } catch (error) {
         console.error(error);
         alert(`Fallo al enviar el mensaje: ${error.message}`);
+    } finally {
+        isSending = false;
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Enviar';
+        }
+        if (msgInput) {
+            msgInput.disabled = false;
+            msgInput.focus();
+        }
     }
 }
 
@@ -663,7 +686,7 @@ if (msgInput) {
     msgInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            sendMessage();
+            if (!isSending) sendMessage();
         }
     });
 }
