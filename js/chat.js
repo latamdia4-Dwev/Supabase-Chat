@@ -212,10 +212,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Abre el selector de emojis flotando encima del botón 😊 del mensaje.
-// Se agrega a document.body con position:fixed (en vez de dentro del mensaje)
-// porque .chat-messages tiene overflow-y:auto, y eso recorta cualquier hijo
-// absolute que se salga del área visible/scrolleable.
+// Abre el selector de emojis flotando encima del botón 😊 del mensaje
 function openReactionPicker(msgId, anchorBtn) {
     closeReactionPicker();
 
@@ -232,20 +229,7 @@ function openReactionPicker(msgId, anchorBtn) {
         picker.appendChild(span);
     });
 
-    document.body.appendChild(picker);
-
-    const rect = anchorBtn.getBoundingClientRect();
-    const pickerRect = picker.getBoundingClientRect();
-
-    let left = rect.right - pickerRect.width;
-    left = Math.max(8, Math.min(left, window.innerWidth - pickerRect.width - 8));
-
-    let top = rect.top - pickerRect.height - 6;
-    if (top < 8) top = rect.bottom + 6; // si no cabe arriba, se abre abajo
-
-    picker.style.left = `${left}px`;
-    picker.style.top = `${top}px`;
-
+    anchorBtn.parentElement.appendChild(picker);
     openReactionPickerId = msgId;
 }
 
@@ -348,6 +332,7 @@ function renderMessage(msg, prepend = false) {
     if (msg.text) {
         const textPara = document.createElement('p');
         textPara.style.margin = '0';
+        textPara.style.whiteSpace = 'pre-wrap';
         textPara.textContent = msg.text;
         msgDiv.appendChild(textPara);
     }
@@ -527,7 +512,6 @@ if (messagesContainer) {
         if (messagesContainer.scrollTop < 40) {
             loadOlderMessages();
         }
-        closeReactionPicker();
     });
 }
 
@@ -606,22 +590,9 @@ if (msgInput) {
 }
 
 // ENVIAR MENSAJE CON LOGICA DE SUBIDA MULTIMEDIA A STORAGE
-// isSending bloquea reentradas (doble clic / Enter+clic) mientras el
-// insert/upload a Supabase sigue en curso, para no duplicar el mensaje.
-let isSending = false;
-
 async function sendMessage() {
-    if (isSending) return;
-
     const text = msgInput.value.trim();
     if (!text && queueFiles.length === 0) return;
-
-    isSending = true;
-    if (sendBtn) {
-        sendBtn.disabled = true;
-        sendBtn.textContent = '…';
-    }
-    if (msgInput) msgInput.disabled = true;
 
     try {
         if (queueFiles.length === 0) {
@@ -667,16 +638,6 @@ async function sendMessage() {
     } catch (error) {
         console.error(error);
         alert(`Fallo al enviar el mensaje: ${error.message}`);
-    } finally {
-        isSending = false;
-        if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = 'Enviar';
-        }
-        if (msgInput) {
-            msgInput.disabled = false;
-            msgInput.focus();
-        }
     }
 }
 
@@ -703,7 +664,7 @@ if (msgInput) {
     msgInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            if (!isSending) sendMessage();
+            sendMessage();
         }
     });
 }
