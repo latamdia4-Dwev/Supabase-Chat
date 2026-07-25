@@ -35,6 +35,7 @@ const fileInput = document.getElementById('fileInput');
 const msgInput = document.getElementById('msgInput');
 const previewContainer = document.getElementById('previewContainer');
 const sendBtn = document.getElementById('sendBtn');
+const guestLoginBtn = document.getElementById('guestLoginBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
 const hideChatBtn = document.getElementById('hideChatBtn');
@@ -55,6 +56,20 @@ const lockOverlay = document.getElementById('lockOverlay');
 const lockPasswordInput = document.getElementById('lockPasswordInput');
 const lockSubmitBtn = document.getElementById('lockSubmitBtn');
 const lockError = document.getElementById('lockError');
+
+// Referencias a los elementos del DOM (pestañas Invitado / Mi cuenta / Registro)
+const lockTabGuest = document.getElementById('lockTabGuest');
+const lockTabAccount = document.getElementById('lockTabAccount');
+const accountForm = document.getElementById('accountForm');
+const accountUsernameInput = document.getElementById('accountUsernameInput');
+const accountPasswordInput = document.getElementById('accountPasswordInput');
+const accountLoginBtn = document.getElementById('accountLoginBtn');
+const showRegisterLink = document.getElementById('showRegisterLink');
+const registerForm = document.getElementById('registerForm');
+const registerUsernameInput = document.getElementById('registerUsernameInput');
+const registerPasswordInput = document.getElementById('registerPasswordInput');
+const registerBtn = document.getElementById('registerBtn');
+const showLoginLink = document.getElementById('showLoginLink');
 
 // Referencias a los elementos del DOM (radio / música)
 const musicToggle = document.getElementById('musicToggle');
@@ -96,6 +111,11 @@ const lightboxClose = document.getElementById('lightboxClose');
 const mySessionId = Math.random().toString(36).substring(2, 9);
 let queueFiles = [];
 let isAdmin = false;
+
+// true = solo puede ver el chat (login con la contraseña compartida de invitado);
+// false = inició sesión con su propia cuenta (usuario+contraseña) y puede chatear.
+let isGuest = true;
+let myUsername = null;
 
 // Variables de estado para el Zoom de Imágenes
 let zoomScale = 1;

@@ -76,6 +76,19 @@ document.addEventListener('paste', async (event) => {
     }
 });
 
+// Supabase Storage rechaza keys con acentos, paréntesis u otros caracteres
+// especiales ("Invalid key"). Limpia el nombre real del archivo antes de
+// subirlo, conservando la extensión.
+function sanitizeFileName(rawName) {
+    const dotIndex = rawName.lastIndexOf('.');
+    const ext = dotIndex > -1 ? rawName.slice(dotIndex) : '';
+    const base = dotIndex > -1 ? rawName.slice(0, dotIndex) : rawName;
+    const cleanBase = base
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
+    return cleanBase + ext;
+}
+
 // DIBUJAR Y ELIMINAR MINIATURAS EN LA COLA PRE-ENVÍO
 function updateFilePreview() {
     if (!previewContainer) return;
@@ -282,6 +295,11 @@ function renderReactions(msgDiv, msgId, reactions) {
 // todas las pestañas/dispositivos quedan sincronizados de la misma forma.
 async function toggleReaction(msgId, emoji) {
     closeReactionPicker();
+
+    if (isGuest) {
+        alert('Inicia sesión con tu cuenta para reaccionar.');
+        return;
+    }
 
     if (!currentUserId) {
         alert('No se pudo identificar tu sesión para reaccionar. Intenta recargar el chat.');
@@ -598,6 +616,30 @@ supabaseClient
     })
     .subscribe();
 
+// RESTRICCIÓN DE MODO INVITADO: solo puede ver el chat, no escribir ni reaccionar.
+// isGuest se define en config.js y se actualiza en lock.js al hacer login.
+function applyGuestRestrictions() {
+    if (!msgInput || !sendBtn) return;
+    if (isGuest) {
+        msgInput.placeholder = 'Solo lectura (invitado) 🔒';
+        msgInput.disabled = true;
+        sendBtn.disabled = true;
+        if (guestLoginBtn) guestLoginBtn.style.display = 'flex';
+    } else {
+        msgInput.placeholder = 'Escribe un mensaje...';
+        msgInput.disabled = false;
+        sendBtn.disabled = false;
+        if (guestLoginBtn) guestLoginBtn.style.display = 'none';
+    }
+}
+
+if (guestLoginBtn) {
+    guestLoginBtn.addEventListener('click', () => {
+        if (typeof showLockScreen === 'function') showLockScreen();
+        if (typeof setLockMode === 'function') setLockMode('account');
+    });
+}
+
 // AUTO-REDIMENSIÓN DEL ÁREA DE TEXTO
 if (msgInput) {
     msgInput.addEventListener('input', () => {
@@ -612,6 +654,10 @@ if (msgInput) {
 let isSending = false;
 
 async function sendMessage() {
+    if (isGuest) {
+        alert('Inicia sesión con tu cuenta para poder chatear.');
+        return;
+    }
     if (isSending) return;
 
     const text = msgInput.value.trim();
@@ -636,7 +682,7 @@ async function sendMessage() {
             for (let i = 0; i < queueFiles.length; i++) {
                 const file = queueFiles[i];
                 const isVid = file.type.startsWith('video/');
-                const fileName = `${Date.now()}_${isVid ? 'video_' : 'file_'}${file.name || 'archivo'}`;
+                const fileName = `${Date.now()}_${isVid ? 'video_' : 'file_'}${sanitizeFileName(file.name || 'archivo')}`;
 
                 const { data: uploadData, error: uploadError } = await supabaseClient.storage
                     .from('chat-images')
@@ -685,6 +731,10 @@ async function sendMessage() {
 // js/media-picker.js). Comparte la misma tabla y el mismo flujo de
 // renderizado que sendMessage(), para no duplicar esa lógica.
 async function sendQuickImageMessage(imageUrl) {
+    if (isGuest) {
+        alert('Inicia sesión con tu cuenta para poder chatear.');
+        return;
+    }
     try {
         const { data, error } = await supabaseClient
             .from('messages')

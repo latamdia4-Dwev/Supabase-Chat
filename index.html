@@ -92,19 +92,45 @@
             <button type="button" id="emojiToggle" class="emoji-toggle-btn" title="Emojis, stickers y GIFs">😀</button>
             <input type="file" id="fileInput" accept="image/*,video/*" multiple style="display: none;">
             <textarea id="msgInput" placeholder="Escribe un mensaje..." rows="1"></textarea>
+            <button id="guestLoginBtn" type="button" title="Inicia sesión para chatear" style="display:none;">🔓</button>
             <button id="sendBtn" type="button">Enviar</button>
         </form>
 
-        <!-- PANTALLA DE BLOQUEO: login real con Supabase Auth (solo contraseña) -->
+        <!-- PANTALLA DE BLOQUEO: modo Invitado (solo ver, contraseña compartida) vs
+             Mi cuenta (usuario+contraseña personal via Supabase Auth, permite chatear) -->
         <div class="lock-overlay" id="lockOverlay" style="display: flex;">
             <div class="lock-box">
                 <div class="lock-icon">🔒</div>
                 <p class="lock-title">Chat protegido</p>
+
+                <div class="lock-tabs">
+                    <button class="lock-tab active" id="lockTabGuest" data-mode="guest">👀 Invitado</button>
+                    <button class="lock-tab" id="lockTabAccount" data-mode="account">👤 Mi cuenta</button>
+                </div>
+
+                <!-- INVITADO: solo puede ver el chat, no puede escribir -->
                 <form id="lockForm" onsubmit="return false;">
                     <input type="password" id="lockPasswordInput" placeholder="Contraseña" autocomplete="current-password">
-                    <button id="lockSubmitBtn" type="button">Entrar</button>
+                    <button id="lockSubmitBtn" type="button">Entrar como invitado</button>
                 </form>
-                <p class="lock-error" id="lockError" style="display: none;">Contraseña incorrecta.</p>
+
+                <!-- CUENTA: login personal, habilita el chat -->
+                <form id="accountForm" style="display:none;" onsubmit="return false;">
+                    <input type="text" id="accountUsernameInput" placeholder="Usuario" autocomplete="username">
+                    <input type="password" id="accountPasswordInput" placeholder="Contraseña" autocomplete="current-password">
+                    <button id="accountLoginBtn" type="button">Entrar</button>
+                    <p class="lock-switch" id="showRegisterLink">¿No tienes cuenta? Regístrate</p>
+                </form>
+
+                <!-- REGISTRO -->
+                <form id="registerForm" style="display:none;" onsubmit="return false;">
+                    <input type="text" id="registerUsernameInput" placeholder="Elige un usuario" autocomplete="username">
+                    <input type="password" id="registerPasswordInput" placeholder="Elige una contraseña" autocomplete="new-password">
+                    <button id="registerBtn" type="button">Crear cuenta</button>
+                    <p class="lock-switch" id="showLoginLink">Ya tengo cuenta</p>
+                </form>
+
+                <p class="lock-error" id="lockError" style="display: none;"></p>
             </div>
         </div>
     </div>
@@ -126,6 +152,7 @@
 
     <script src="js/passwords.js?v=20260722"></script>
     <script src="js/config.js?v=20260722"></script>
+    <script src="js/auth.js?v=20260722"></script>
     <script src="js/lock.js?v=20260722"></script>
     <script src="js/ui.js?v=20260722"></script>
     <script src="js/music.js?v=20260722"></script>

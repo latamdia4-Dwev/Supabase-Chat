@@ -63,7 +63,63 @@ function hideLockScreen() {
     }
 }
 
-async function attemptLogin() {
+// --- CONTROL DE PESTAÑAS (Invitado / Mi cuenta / Registro) ---
+function showLockError(msg) {
+    if (!lockError) return;
+    lockError.textContent = msg;
+    lockError.style.display = 'block';
+}
+
+function clearLockError() {
+    if (lockError) lockError.style.display = 'none';
+}
+
+function setLockMode(mode) {
+    if (lockTabGuest) lockTabGuest.classList.toggle('active', mode === 'guest');
+    if (lockTabAccount) lockTabAccount.classList.toggle('active', mode === 'account');
+    if (lockForm) lockForm.style.display = mode === 'guest' ? 'flex' : 'none';
+    if (accountForm) accountForm.style.display = mode === 'account' ? 'flex' : 'none';
+    if (registerForm) registerForm.style.display = 'none';
+    clearLockError();
+}
+
+if (lockTabGuest) lockTabGuest.addEventListener('click', () => setLockMode('guest'));
+if (lockTabAccount) lockTabAccount.addEventListener('click', () => setLockMode('account'));
+
+if (showRegisterLink) {
+    showRegisterLink.addEventListener('click', () => {
+        if (accountForm) accountForm.style.display = 'none';
+        if (registerForm) registerForm.style.display = 'flex';
+        clearLockError();
+    });
+}
+
+if (showLoginLink) {
+    showLoginLink.addEventListener('click', () => {
+        if (registerForm) registerForm.style.display = 'none';
+        if (accountForm) accountForm.style.display = 'flex';
+        clearLockError();
+    });
+}
+
+// Se llama al terminar CUALQUIER login exitoso (invitado, cuenta o registro)
+function finishLogin() {
+    hideLockScreen();
+
+    if (typeof refreshCurrentUserId === 'function') {
+        refreshCurrentUserId();
+    }
+    if (typeof loadInitialMessages === 'function') {
+        loadInitialMessages();
+    }
+    if (typeof applyGuestRestrictions === 'function') {
+        applyGuestRestrictions();
+    }
+}
+
+// MODO INVITADO: contraseña compartida (la cuenta CHAT_LOGIN_EMAIL de siempre).
+// Deja ver el chat pero NO escribir (ver applyGuestRestrictions en chat.js).
+async function attemptGuestLogin() {
     if (!lockPasswordInput) return;
 
     const password = lockPasswordInput.value;
@@ -79,38 +135,88 @@ async function attemptLogin() {
     if (lockSubmitBtn) lockSubmitBtn.disabled = false;
 
     if (error) {
-        if (lockError) {
-            lockError.textContent = 'Contraseña incorrecta.';
-            lockError.style.display = 'block';
-        }
+        showLockError('Contraseña incorrecta.');
         lockPasswordInput.value = '';
         lockPasswordInput.focus();
         return;
     }
 
-    hideLockScreen();
+    isGuest = true;
+    myUsername = null;
+    finishLogin();
+}
 
-    // Refresca el auth.uid() en caché (usado para saber quién reaccionó a
-    // cada mensaje) ahora que ya hay una sesión válida.
-    if (typeof refreshCurrentUserId === 'function') {
-        refreshCurrentUserId();
-    }
+// MODO CUENTA: login personal (usuario+contraseña) → puede chatear
+async function attemptAccountLogin() {
+    if (!accountUsernameInput || !accountPasswordInput) return;
 
-    // Vuelve a intentar cargar el historial ahora que ya hay una sesión válida
-    if (typeof loadInitialMessages === 'function') {
-        loadInitialMessages();
+    const username = accountUsernameInput.value.trim();
+    const password = accountPasswordInput.value;
+    if (!username || !password) return;
+
+    if (accountLoginBtn) accountLoginBtn.disabled = true;
+
+    try {
+        await loginAccount(username, password);
+        isGuest = false;
+        myUsername = username;
+        finishLogin();
+    } catch (err) {
+        showLockError(err.message);
+    } finally {
+        if (accountLoginBtn) accountLoginBtn.disabled = false;
     }
 }
 
-if (lockSubmitBtn) {
-    lockSubmitBtn.addEventListener('click', attemptLogin);
+// REGISTRO: crea la cuenta personal y entra directo (ya puede chatear)
+async function attemptRegister() {
+    if (!registerUsernameInput || !registerPasswordInput) return;
+
+    const username = registerUsernameInput.value.trim();
+    const password = registerPasswordInput.value;
+    if (!username || !password) return;
+
+    if (registerBtn) registerBtn.disabled = true;
+
+    try {
+        await registerAccount(username, password);
+        isGuest = false;
+        myUsername = username;
+        finishLogin();
+    } catch (err) {
+        showLockError(err.message);
+    } finally {
+        if (registerBtn) registerBtn.disabled = false;
+    }
 }
+
+if (lockSubmitBtn) lockSubmitBtn.addEventListener('click', attemptGuestLogin);
+if (accountLoginBtn) accountLoginBtn.addEventListener('click', attemptAccountLogin);
+if (registerBtn) registerBtn.addEventListener('click', attemptRegister);
 
 if (lockPasswordInput) {
     lockPasswordInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            attemptLogin();
+            attemptGuestLogin();
+        }
+    });
+}
+
+if (accountPasswordInput) {
+    accountPasswordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            attemptAccountLogin();
+        }
+    });
+}
+
+if (registerPasswordInput) {
+    registerPasswordInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            attemptRegister();
         }
     });
 }

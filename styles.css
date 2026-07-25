@@ -315,14 +315,16 @@ body {
 .chat-form textarea {
     flex: 1;
     resize: none;
-    padding: 8px 12px;
+    padding: 12px 16px;
     border-radius: 20px;
     border: 1px solid #333;
     background: var(--bg-input);
     color: var(--text-input);
-    font-size: 0.95em;
+    font-size: 1em;
+    line-height: 1.35;
     outline: none;
-    max-height: 100px;
+    min-height: 42px;
+    max-height: 140px;
     box-sizing: border-box;
 }
 
@@ -340,6 +342,11 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+}
+
+#guestLoginBtn {
+    background: #f5a623;
+    font-size: 1.05em;
 }
 
 .chat-form textarea:disabled,
@@ -832,9 +839,10 @@ html.brightness-dimmed {
     flex-direction: column;
     align-items: center;
     gap: 10px;
-    padding: 30px;
-    width: 80%;
-    max-width: 260px;
+    padding: 28px 24px;
+    width: 88%;
+    max-width: 320px;
+    box-sizing: border-box;
 }
 
 .lock-icon {
@@ -847,7 +855,9 @@ html.brightness-dimmed {
     margin: 0 0 6px 0;
 }
 
-#lockForm {
+#lockForm,
+#accountForm,
+#registerForm {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -858,7 +868,7 @@ html.brightness-dimmed {
 .lock-box input {
     width: 100%;
     box-sizing: border-box;
-    padding: 10px 14px;
+    padding: 12px 14px;
     border-radius: 20px;
     border: 1px solid #333;
     background: #1a1a1a;
@@ -870,11 +880,12 @@ html.brightness-dimmed {
 
 .lock-box button {
     width: 100%;
+    box-sizing: border-box;
     background: #3ecf8e;
     color: #fff;
     border: none;
     border-radius: 20px;
-    padding: 10px;
+    padding: 11px;
     font-weight: bold;
     cursor: pointer;
 }
@@ -883,6 +894,49 @@ html.brightness-dimmed {
     color: #ff4d4d;
     font-size: 0.82em;
     margin: 0;
+    text-align: center;
+}
+
+/* Selector tipo "segmented control" (una sola píldora con fondo, no dos
+   botones sueltos) para elegir entre Invitado / Mi cuenta. */
+.lock-tabs {
+    display: flex;
+    gap: 2px;
+    width: 100%;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 22px;
+    padding: 3px;
+    box-sizing: border-box;
+}
+
+.lock-tab {
+    flex: 1;
+    background: transparent;
+    color: #999;
+    border: none;
+    border-radius: 18px;
+    padding: 8px 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lock-tab.active {
+    background: #3ecf8e;
+    color: #06241a;
+}
+
+.lock-switch {
+    color: #3ecf8e;
+    font-size: 0.78em;
+    cursor: pointer;
+    text-decoration: underline;
+    text-align: center;
+    margin: 2px 0 0 0;
+    width: 100%;
 }
 
 

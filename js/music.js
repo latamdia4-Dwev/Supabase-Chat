@@ -224,6 +224,19 @@ function cleanUploadedFileName(rawName) {
     return rawName.replace(/^\d+_/, '');
 }
 
+// Supabase Storage rechaza keys con acentos, paréntesis u otros caracteres
+// especiales ("Invalid key"). Esto limpia el nombre real del archivo antes
+// de subirlo, conservando la extensión.
+function sanitizeFileName(rawName) {
+    const dotIndex = rawName.lastIndexOf('.');
+    const ext = dotIndex > -1 ? rawName.slice(dotIndex) : '';
+    const base = dotIndex > -1 ? rawName.slice(0, dotIndex) : rawName;
+    const cleanBase = base
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos (í -> i)
+        .replace(/[^a-zA-Z0-9._-]/g, '_');                 // reemplaza el resto por _
+    return cleanBase + ext;
+}
+
 async function loadUploadedTracks() {
     if (!radioResults) return;
     radioResults.innerHTML = '<div class="radio-status">🔎 Cargando tu música...</div>';
@@ -326,7 +339,7 @@ if (uploadMusicInput) {
 
         try {
             for (const file of files) {
-                const fileName = `${Date.now()}_${file.name}`;
+                const fileName = `${Date.now()}_${sanitizeFileName(file.name)}`;
                 const { error } = await supabaseClient.storage
                     .from(MUSIC_UPLOADS_BUCKET)
                     .upload(fileName, file);
