@@ -152,6 +152,14 @@ if (emojiToggle && mediaPanel) {
     });
 }
 
+// Cierra el panel si se hace clic en cualquier otro lugar de la página
+// (fuera del panel y fuera del botón 😀 que lo abre).
+document.addEventListener('click', (e) => {
+    if (!mediaPanel || !mediaPanel.classList.contains('open')) return;
+    if (e.target.closest('#mediaPanel') || e.target.closest('#emojiToggle')) return;
+    closeMediaPanel();
+});
+
 if (tabEmoji) tabEmoji.addEventListener('click', () => setMediaMode('emoji'));
 if (tabSticker) tabSticker.addEventListener('click', () => setMediaMode('sticker'));
 if (tabGif) tabGif.addEventListener('click', () => setMediaMode('gif'));

@@ -603,6 +603,15 @@ if (musicToggle && musicPanel) {
     });
 }
 
+// Cierra el panel si se hace clic en cualquier otro lugar de la página
+// (fuera del panel y fuera del botón 🎵 que lo abre), igual que ya pasa
+// con el selector de reacciones y debería pasar acá.
+document.addEventListener('click', (e) => {
+    if (!musicPanel || !musicPanel.classList.contains('open')) return;
+    if (e.target.closest('#musicPanel') || e.target.closest('#musicToggle')) return;
+    musicPanel.classList.remove('open');
+});
+
 // --- CONTROL DE VOLUMEN ---
 function updateVolumeIcon(volume, muted) {
     if (!muteBtn) return;
