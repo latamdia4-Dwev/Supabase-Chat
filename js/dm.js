@@ -261,7 +261,11 @@ async function loadDmMessages() {
             .eq('conversation_id', currentConversationId)
             .order('created_at', { ascending: true }).limit(200);
         if (error) throw error;
-        (data || []).forEach(renderDmMessage);
+        (data || []).forEach(msg => {
+            dmRenderedIds.add(msg.id);
+            if (msg.id > dmLastKnownId) dmLastKnownId = msg.id;
+            renderDmMessage(msg);
+        });
         dmMessages.scrollTop = dmMessages.scrollHeight;
     } catch (err) {
         console.error(err);
@@ -269,34 +273,92 @@ async function loadDmMessages() {
     }
 }
 
+// IDs already rendered so we never show a message twice regardless of
+// whether it arrived via Realtime or the polling fallback.
+const dmRenderedIds = new Set();
+let dmPollInterval = null;
+let dmLastKnownId = 0;
+
 function subscribeDmChannel() {
     unsubscribeDmChannel();
     if (!currentConversationId) return;
 
-    // Track locally-sent message IDs to avoid double-render in normal 1:1 chats.
-    // For self-chat (sender === receiver) we MUST render via Realtime only —
-    // sendDmMessage() does NOT render locally, so every INSERT must be shown.
-    const locallyRenderedIds = new Set();
+    const convId = currentConversationId;
+    dmLastKnownId = 0; // reset so poll fetches from current state
 
-    // Expose setter so sendDmMessage can register IDs it rendered locally
-    subscribeDmChannel._registerLocal = (id) => locallyRenderedIds.add(id);
-
+    // ── Realtime (best-effort) ──────────────────────────────────────────
+    // Listen without a server-side filter and discard unrelated events
+    // client-side. This avoids a Supabase bug where filtered channels
+    // silently miss events when sender_id === receiver_id (self-chat).
     dmChannel = supabaseClient
-        .channel(`dm-${currentConversationId}`)
+        .channel(`dm-conv-${convId}-${Date.now()}`)
         .on('postgres_changes', {
-            event: 'INSERT', schema: 'public', table: 'private_messages',
-            filter: `conversation_id=eq.${currentConversationId}`
+            event: 'INSERT', schema: 'public', table: 'private_messages'
         }, payload => {
-            // Skip only if we pre-rendered this message id locally (non-self chats)
-            if (locallyRenderedIds.has(payload.new.id)) return;
-            renderDmMessage(payload.new);
+            const msg = payload.new;
+            if (msg.conversation_id !== convId) return;
+            if (dmRenderedIds.has(msg.id)) return;
+            dmRenderedIds.add(msg.id);
+            if (msg.id > dmLastKnownId) dmLastKnownId = msg.id;
+            renderDmMessage(msg);
             if (dmMessages) dmMessages.scrollTop = dmMessages.scrollHeight;
         })
-        .subscribe();
+        .subscribe((status) => {
+            // If Realtime subscription fails or is not enabled for the table,
+            // fall back to polling every 2 seconds.
+            if (status === 'SUBSCRIBED') {
+                console.log('[DM] Realtime activo para conversación', convId);
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn('[DM] Realtime no disponible, activando polling');
+                startDmPolling(convId);
+            }
+        });
+
+    // ── Polling fallback (always active as safety net) ──────────────────
+    // Runs every 2 s and fetches only messages newer than the last known id.
+    // When Realtime works, the poll finds nothing new and is a no-op.
+    startDmPolling(convId);
+}
+
+function startDmPolling(convId) {
+    stopDmPolling();
+    dmPollInterval = setInterval(async () => {
+        if (currentConversationId !== convId) { stopDmPolling(); return; }
+        try {
+            let query = supabaseClient
+                .from('private_messages')
+                .select('*')
+                .eq('conversation_id', convId)
+                .order('id', { ascending: true })
+                .limit(20);
+
+            // Only fetch messages newer than what we already have
+            if (dmLastKnownId > 0) query = query.gt('id', dmLastKnownId);
+
+            const { data, error } = await query;
+            if (error) throw error;
+            (data || []).forEach(msg => {
+                if (dmRenderedIds.has(msg.id)) return;
+                dmRenderedIds.add(msg.id);
+                if (msg.id > dmLastKnownId) dmLastKnownId = msg.id;
+                renderDmMessage(msg);
+                if (dmMessages) dmMessages.scrollTop = dmMessages.scrollHeight;
+            });
+        } catch (err) {
+            console.error('[DM] Poll error:', err);
+        }
+    }, 2000);
+}
+
+function stopDmPolling() {
+    if (dmPollInterval) { clearInterval(dmPollInterval); dmPollInterval = null; }
 }
 
 function unsubscribeDmChannel() {
+    stopDmPolling();
     if (dmChannel) { supabaseClient.removeChannel(dmChannel); dmChannel = null; }
+    dmRenderedIds.clear();
+    dmLastKnownId = 0;
 }
 
 async function sendDmMessage() {

@@ -180,6 +180,7 @@ function updateMediaSessionMetadata(title, subtitle, artworkUrl) {
 }
 
 // --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
+// --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
 function setMusicMode(mode) {
     currentMusicMode = mode;
     if (radioResults) radioResults.innerHTML = '';
@@ -189,8 +190,6 @@ function setMusicMode(mode) {
     if (tabSongs) tabSongs.classList.toggle('active', mode === 'songs');
     if (tabUploads) tabUploads.classList.toggle('active', mode === 'uploads');
 
-    // El buscador (radio/canciones) y el botón de subir (mi música) son
-    // mutuamente excluyentes: cada pestaña usa uno de los dos.
     if (musicSearchRow) musicSearchRow.style.display = mode === 'uploads' ? 'none' : 'flex';
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
@@ -201,7 +200,7 @@ function setMusicMode(mode) {
         if (musicInput) musicInput.placeholder = 'Buscar canción o artista...';
         if (musicHint) musicHint.textContent = 'Solo vista previa de 30 segundos por canción (límite de derechos de autor).';
     } else {
-        if (musicHint) musicHint.textContent = 'Sube tus propios archivos de audio y reprodúcelos aquí. Visibles para todos en el chat.';
+        if (musicHint) musicHint.textContent = 'Tus canciones son privadas por defecto. Activa 🌐 para compartirlas con el chat.';
         loadUploadedTracks();
     }
 }
@@ -210,151 +209,203 @@ if (tabRadio) tabRadio.addEventListener('click', () => setMusicMode('radio'));
 if (tabSongs) tabSongs.addEventListener('click', () => setMusicMode('songs'));
 if (tabUploads) tabUploads.addEventListener('click', () => setMusicMode('uploads'));
 
-// --- MI MÚSICA: ARCHIVOS DE AUDIO SUBIDOS POR TI (Supabase Storage) ---
-// Requiere un bucket público llamado "music-uploads" en Supabase Storage
-// (Storage → New bucket → nombre "music-uploads", marcar "Public bucket").
-// No usa ninguna tabla nueva: la lista de canciones sale directo del propio
-// bucket con supabaseClient.storage.from(...).list(), igual que ya se hace
-// con "chat-images" para fotos y videos del chat.
+// --- MI MÚSICA ---
+// Usa la tabla music_tracks para metadatos (visibilidad) y el bucket
+// PRIVADO music-uploads. URLs firmadas (createSignedUrl, 1h) para acceso
+// seguro: canciones privadas solo las reproduce su dueño; públicas las ven
+// todos los usuarios autenticados (RLS en music_tracks lo controla).
 const MUSIC_UPLOADS_BUCKET = 'music-uploads';
+const SIGNED_URL_EXPIRY = 3600;
 
-// Quita el prefijo "<timestamp>_" que se le agrega al nombre real del
-// archivo al subirlo, para mostrar algo legible en la lista.
-function cleanUploadedFileName(rawName) {
-    return rawName.replace(/^\d+_/, '');
-}
-
-// Supabase Storage rechaza keys con acentos, paréntesis u otros caracteres
-// especiales ("Invalid key"). Esto limpia el nombre real del archivo antes
-// de subirlo, conservando la extensión.
 function sanitizeFileName(rawName) {
     const dotIndex = rawName.lastIndexOf('.');
     const ext = dotIndex > -1 ? rawName.slice(dotIndex) : '';
     const base = dotIndex > -1 ? rawName.slice(0, dotIndex) : rawName;
     const cleanBase = base
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita acentos (í -> i)
-        .replace(/[^a-zA-Z0-9._-]/g, '_');                 // reemplaza el resto por _
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9._-]/g, '_');
     return cleanBase + ext;
+}
+
+async function getSignedUrl(fileName) {
+    const { data, error } = await supabaseClient.storage
+        .from(MUSIC_UPLOADS_BUCKET)
+        .createSignedUrl(fileName, SIGNED_URL_EXPIRY);
+    if (error) throw error;
+    return data.signedUrl;
 }
 
 async function loadUploadedTracks() {
     if (!radioResults) return;
-    radioResults.innerHTML = '<div class="radio-status">🔎 Cargando tu música...</div>';
-
+    radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando tu música...</div>';
     try {
         const { data, error } = await supabaseClient
-            .storage
-            .from(MUSIC_UPLOADS_BUCKET)
-            .list('', { sortBy: { column: 'created_at', order: 'desc' } });
+            .from('music_tracks')
+            .select('*')
+            .order('created_at', { ascending: false });
         if (error) throw error;
-
-        // Storage a veces incluye una entrada de "carpeta vacía" (.emptyFolderPlaceholder)
-        const audioFiles = (data || []).filter(f => f.name && !f.name.startsWith('.'));
-        renderUploadedTracks(audioFiles);
+        if (!data || data.length === 0) {
+            radioResults.innerHTML = '<div class="radio-status">Todavía no subiste ninguna canción. Usa el botón ⬆️ de arriba.</div>';
+            currentResultsList = [];
+            return;
+        }
+        renderUploadedTracks(data);
     } catch (err) {
-        console.error('Error al listar música subida:', err);
-        radioResults.innerHTML = '<div class="radio-status">⚠️ No se pudo cargar tu música. Revisa que exista el bucket público "music-uploads" en Supabase Storage.</div>';
+        console.error('Error al cargar música:', err);
+        radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
     }
 }
 
-function renderUploadedTracks(files) {
+function renderUploadedTracks(tracks) {
     radioResults.innerHTML = '';
-
-    if (files.length === 0) {
-        radioResults.innerHTML = '<div class="radio-status">Todavía no subiste ninguna canción. Usa el botón ⬆️ de arriba.</div>';
+    if (!tracks || tracks.length === 0) {
+        radioResults.innerHTML = '<div class="radio-status">Sin canciones disponibles.</div>';
         currentResultsList = [];
         return;
     }
-
-    const tracks = files.map(file => {
-        const { data: urlData } = supabaseClient.storage
-            .from(MUSIC_UPLOADS_BUCKET)
-            .getPublicUrl(file.name);
-        return {
-            name: file.name,
-            displayName: cleanUploadedFileName(file.name),
-            url: urlData.publicUrl
-        };
-    });
-
     currentResultsList = tracks;
 
     tracks.forEach((track, index) => {
+        const isMine = track.user_id === currentUserId;
         const item = document.createElement('div');
         item.className = 'radio-item';
+        item.style.position = 'relative';
 
-        const icon = document.createElement('span');
-        icon.className = 'radio-icon uploaded-icon';
-        icon.textContent = '🎵';
+        const visIcon = document.createElement('span');
+        visIcon.className = 'radio-icon uploaded-icon';
+        visIcon.textContent = track.is_public ? '\u{1F310}' : '\u{1F512}';
+        visIcon.title = track.is_public ? 'Pública (visible para todos)' : 'Privada (solo tú)';
 
         const info = document.createElement('div');
         info.className = 'radio-info';
 
-        const name = document.createElement('span');
-        name.className = 'radio-name';
-        name.textContent = track.displayName;
-        info.appendChild(name);
+        const nameEl = document.createElement('span');
+        nameEl.className = 'radio-name';
+        nameEl.textContent = track.display_name;
+        info.appendChild(nameEl);
+
+        if (!isMine) {
+            const owner = document.createElement('span');
+            owner.className = 'radio-meta';
+            owner.textContent = '\u{1F310} compartida';
+            info.appendChild(owner);
+        }
+
+        const right = document.createElement('div');
+        right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+
+        if (isMine) {
+            // Toggle public/private
+            const toggleBtn = document.createElement('button');
+            toggleBtn.title = track.is_public ? 'Hacer privada' : 'Hacer pública';
+            toggleBtn.textContent = track.is_public ? '\u{1F512}' : '\u{1F310}';
+            toggleBtn.style.cssText = 'background:rgba(62,207,142,0.15);border:1px solid #3ecf8e;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#3ecf8e;';
+            toggleBtn.onclick = async (e) => {
+                e.stopPropagation();
+                const newPublic = !track.is_public;
+                try {
+                    const { error } = await supabaseClient
+                        .from('music_tracks').update({ is_public: newPublic }).eq('id', track.id);
+                    if (error) throw error;
+                    track.is_public = newPublic;
+                    toggleBtn.textContent = newPublic ? '\u{1F512}' : '\u{1F310}';
+                    toggleBtn.title = newPublic ? 'Hacer privada' : 'Hacer pública';
+                    visIcon.textContent = newPublic ? '\u{1F310}' : '\u{1F512}';
+                    visIcon.title = newPublic ? 'Pública (visible para todos)' : 'Privada (solo tú)';
+                } catch (err) {
+                    alert('No se pudo cambiar la visibilidad: ' + err.message);
+                }
+            };
+            right.appendChild(toggleBtn);
+
+            // Delete
+            const delBtn = document.createElement('button');
+            delBtn.title = 'Eliminar canción';
+            delBtn.textContent = '\u{1F5D1}\uFE0F';
+            delBtn.style.cssText = 'background:rgba(255,77,77,0.1);border:1px solid #ff4d4d;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#ff4d4d;';
+            delBtn.onclick = async (e) => {
+                e.stopPropagation();
+                if (!confirm('¿Eliminar "' + track.display_name + '"?')) return;
+                try {
+                    await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
+                    const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
+                    if (error) throw error;
+                    item.remove();
+                    const idx = currentResultsList.findIndex(t => t.id === track.id);
+                    if (idx !== -1) currentResultsList.splice(idx, 1);
+                } catch (err) {
+                    alert('No se pudo eliminar: ' + err.message);
+                }
+            };
+            right.appendChild(delBtn);
+        }
 
         const playIcon = document.createElement('span');
         playIcon.className = 'radio-play-icon';
-        playIcon.textContent = '▶';
+        playIcon.textContent = '\u25B6';
+        right.appendChild(playIcon);
 
-        item.appendChild(icon);
+        item.appendChild(visIcon);
         item.appendChild(info);
-        item.appendChild(playIcon);
-
+        item.appendChild(right);
         item.onclick = () => playUploadedTrack(track, index);
         radioResults.appendChild(item);
     });
 }
 
-function playUploadedTrack(track, index = -1) {
+async function playUploadedTrack(track, index = -1) {
     if (!audioPlayer) return;
     if (index >= 0) currentResultIndex = index;
-    audioPlayer.src = track.url;
-    audioPlayer.play()
-        .then(() => {
-            isPlaying = true;
-            if (playPauseBtn) playPauseBtn.textContent = '⏸';
-        })
-        .catch(err => {
-            console.error('Error al reproducir el archivo subido:', err);
-            if (currentTrackTitle) currentTrackTitle.textContent = 'No se pudo reproducir este archivo';
-        });
-
-    if (currentTrackTitle) currentTrackTitle.textContent = track.displayName || 'Reproduciendo...';
-    updateMediaSessionMetadata(track.displayName, 'Subido al chat', null);
-
-    if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
-    if (musicPanel) musicPanel.classList.remove('open');
+    try {
+        const signedUrl = await getSignedUrl(track.file_name);
+        audioPlayer.src = signedUrl;
+        audioPlayer.play()
+            .then(() => { isPlaying = true; if (playPauseBtn) playPauseBtn.textContent = '⏸'; })
+            .catch(err => {
+                console.error('Error al reproducir:', err);
+                if (currentTrackTitle) currentTrackTitle.textContent = 'No se pudo reproducir este archivo';
+            });
+        if (currentTrackTitle) currentTrackTitle.textContent = track.display_name || 'Reproduciendo...';
+        updateMediaSessionMetadata(track.display_name, track.is_public ? '\u{1F310} Pública' : '\u{1F512} Privada', null);
+        if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+        if (musicPanel) musicPanel.classList.remove('open');
+    } catch (err) {
+        console.error('Error al obtener URL firmada:', err);
+        alert('No se pudo acceder al archivo: ' + err.message);
+    }
 }
 
-// Selección de archivo(s) para subir
+// Upload: guarda el archivo en el bucket privado + fila en music_tracks
 if (uploadMusicInput) {
     uploadMusicInput.addEventListener('change', async () => {
         const files = Array.from(uploadMusicInput.files || []);
         if (files.length === 0) return;
-
+        if (!currentUserId) { alert('Debes iniciar sesión para subir música.'); return; }
         radioResults.innerHTML = '<div class="radio-status">⬆️ Subiendo...</div>';
-
         try {
             for (const file of files) {
-                const fileName = `${Date.now()}_${sanitizeFileName(file.name)}`;
-                const { error } = await supabaseClient.storage
-                    .from(MUSIC_UPLOADS_BUCKET)
-                    .upload(fileName, file);
-                if (error) throw error;
+                // Prefix with user id so each user has their own folder in the bucket
+                const fileName = currentUserId + '/' + Date.now() + '_' + sanitizeFileName(file.name);
+                const displayName = file.name.replace(/\.[^/.]+$/, '');
+                const { error: upErr } = await supabaseClient.storage
+                    .from(MUSIC_UPLOADS_BUCKET).upload(fileName, file);
+                if (upErr) throw upErr;
+                const { error: dbErr } = await supabaseClient
+                    .from('music_tracks')
+                    .insert([{ user_id: currentUserId, file_name: fileName, display_name: displayName, is_public: false }]);
+                if (dbErr) throw dbErr;
             }
             await loadUploadedTracks();
         } catch (err) {
             console.error('Error al subir música:', err);
-            alert(`No se pudo subir el archivo: ${err.message}`);
+            alert('No se pudo subir: ' + err.message);
             loadUploadedTracks();
         } finally {
             uploadMusicInput.value = '';
         }
     });
 }
+
 
 function runSearch(query) {
     if (currentMusicMode === 'radio') {

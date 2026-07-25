@@ -16,20 +16,20 @@
 const GIPHY_SEARCH_URL = 'https://api.giphy.com/v1/gifs/search';
 const GIPHY_TRENDING_URL = 'https://api.giphy.com/v1/gifs/trending';
 
-// Set compacto de emojis de uso común (sin categorías, para mantenerlo simple)
-const COMMON_EMOJIS = [
-    '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
-    '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙',
-    '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔',
-    '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔',
-    '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🥵', '🥶', '😵',
-    '🤯', '🥳', '😎', '🤓', '🧐', '😕', '😟', '🙁', '😮', '😯',
-    '😲', '😳', '🥺', '😦', '😧', '😨', '😰', '😥', '😢', '😭',
-    '😱', '😖', '😣', '😞', '😓', '😩', '😫', '🥱', '😤', '😡',
-    '😠', '🤬', '👍', '👎', '👏', '🙌', '🙏', '💪', '👋', '🤝',
-    '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💯',
-    '🔥', '✨', '🎉', '🎂', '🎁', '☕', '🍕', '🍺', '⚽', '🚀'
+// Emojis organizados por categoría para el panel del chat
+const EMOJI_CATEGORIES = [
+    { label: '😀 Caras', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','😵','🤯','🥳','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'] },
+    { label: '👋 Gestos', emojis: ['👍','👎','👏','🙌','🤲','🤝','🙏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👋','🤚','🖐️','✋','🖖','💪','🦵','🦶','👂','👃','👁️','👀','👅','💋'] },
+    { label: '❤️ Corazones', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','❤️‍🔥','❤️‍🩹'] },
+    { label: '🎉 Celebración', emojis: ['🎉','🎊','🎈','🎁','🎂','🍰','🥂','🍾','🏆','🥇','🎯','🎮','🎪','🎭','🎨','🎬','🎤','🎧','🎵','🎶','🎸','🥁','🎷','🎺','🎻','🪗'] },
+    { label: '🔥 Símbolos', emojis: ['🔥','✨','💫','⭐','🌟','💥','❄️','🌈','☀️','🌙','⚡','🌊','💦','🍀','🌸','🌺','🌻','🌹','💐','🍁','🍂','🍃','🌿','💯','✅','❌','⚠️','🚨','💡','🔑','🔒','🔓','🎯','💎','👑'] },
+    { label: '🐶 Animales', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🦆','🦉','🦇','🐺','🐴','🦄','🐝','🦋','🐞','🐢','🐍','🦎','🐙','🦑','🐬','🐳'] },
+    { label: '🍕 Comida', emojis: ['🍕','🍔','🌮','🌯','🍜','🍝','🍣','🍱','🍛','🍲','🥘','🍗','🍖','🥩','🥓','🌭','🥚','🍳','🧇','🥞','🍞','🥐','🥗','🍎','🍊','🍋','🍇','🍓','🍒','☕','🍵','🧋','🍺','🍻','🥃','🍷','🥂','🍾'] },
+    { label: '🚀 Varios', emojis: ['🚀','🛸','🌍','🌏','🌎','🗺️','🧭','⛺','🏠','🏰','🏯','🗼','🗽','🏟️','🎠','🎡','🎢','💈','🎪','🚂','🚃','🚄','🚅','✈️','🚀','🛶','⛵','🚗','🚕','🚙','🏎️','🚓','🚑','🚒','⚽','🏀','🏈','⚾','🎾','🏐','🏉','🎱','🏓','🏸','🥊','🎽','🛹','🛷','⛸️','🥅','⛳','🎣','🤿','🎯','🎲','🎮','🕹️','🧩'] }
 ];
+
+// Flat list for backward compat (used nowhere new, kept for safety)
+const COMMON_EMOJIS = EMOJI_CATEGORIES.flatMap(c => c.emojis);
 
 // Emojis usados como "stickers" (versión grande, renderizada como imagen)
 const STICKER_EMOJIS = ['😂', '❤️', '👍', '🎉', '😢', '😮', '🔥', '💯', '🙏', '😍', '🥳', '👏'];
@@ -42,15 +42,15 @@ function twemojiUrl(emoji) {
 }
 
 let mediaMode = 'emoji';
+let emojiSearchTerm = '';
 
-// Inserta texto en la posición actual del cursor de un <textarea>/<input>
 function insertTextAtCursor(input, text) {
     const start = input.selectionStart ?? input.value.length;
     const end = input.selectionEnd ?? input.value.length;
     input.value = input.value.slice(0, start) + text + input.value.slice(end);
     const cursor = start + text.length;
     input.selectionStart = input.selectionEnd = cursor;
-    input.dispatchEvent(new Event('input')); // dispara el auto-resize ya definido en chat.js
+    input.dispatchEvent(new Event('input'));
     input.focus();
 }
 
@@ -58,17 +58,68 @@ function closeMediaPanel() {
     if (mediaPanel) mediaPanel.classList.remove('open');
 }
 
-// --- PESTAÑA EMOJIS ---
+// Builds or rebuilds a search input above the emoji grid
+function ensureEmojiSearch() {
+    if (document.getElementById('emojiSearchInput')) return;
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:6px 10px 0 10px;flex-shrink:0;';
+    const input = document.createElement('input');
+    input.id = 'emojiSearchInput';
+    input.type = 'text';
+    input.placeholder = '🔍 Buscar emoji...';
+    input.style.cssText = `
+        width:100%;box-sizing:border-box;padding:7px 12px;border-radius:20px;
+        border:1px solid #333;background:var(--bg-input,#1a1a1a);
+        color:var(--text-input,#fff);font-size:0.82em;outline:none;
+    `;
+    input.addEventListener('input', () => {
+        emojiSearchTerm = input.value.trim().toLowerCase();
+        renderEmojiGrid();
+    });
+    wrap.appendChild(input);
+    // Insert before mediaGrid
+    if (mediaGrid && mediaGrid.parentNode) {
+        mediaGrid.parentNode.insertBefore(wrap, mediaGrid);
+    }
+}
+
+// --- PESTAÑA EMOJIS (categorías + búsqueda) ---
 function renderEmojiGrid() {
     if (!mediaGrid) return;
     mediaGrid.innerHTML = '';
-    COMMON_EMOJIS.forEach(emoji => {
-        const span = document.createElement('span');
-        span.className = 'emoji-item';
-        span.textContent = emoji;
-        span.onclick = () => insertTextAtCursor(msgInput, emoji);
-        mediaGrid.appendChild(span);
+    mediaGrid.style.cssText = 'display:flex;flex-direction:column;gap:4px;padding:6px 10px;overflow-y:auto;flex:1;min-height:0;';
+
+    const term = emojiSearchTerm;
+
+    EMOJI_CATEGORIES.forEach(cat => {
+        const filtered = term
+            ? cat.emojis.filter(e => e.includes(term) || cat.label.toLowerCase().includes(term))
+            : cat.emojis;
+        if (filtered.length === 0) return;
+
+        // Category label
+        const label = document.createElement('div');
+        label.textContent = cat.label;
+        label.style.cssText = 'font-size:0.68em;color:#888;font-weight:bold;padding:4px 2px 2px 2px;flex-shrink:0;';
+        mediaGrid.appendChild(label);
+
+        // Emoji row
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;';
+        filtered.forEach(emoji => {
+            const span = document.createElement('span');
+            span.className = 'emoji-item';
+            span.textContent = emoji;
+            span.style.fontSize = '1.3em';
+            span.onclick = () => insertTextAtCursor(msgInput, emoji);
+            row.appendChild(span);
+        });
+        mediaGrid.appendChild(row);
     });
+
+    if (mediaGrid.innerHTML === '') {
+        mediaGrid.innerHTML = '<div style="color:#888;font-size:0.82em;text-align:center;padding:16px;">Sin resultados</div>';
+    }
 }
 
 // --- PESTAÑA STICKERS ---
@@ -140,7 +191,7 @@ function setMediaMode(mode) {
     if (tabGif) tabGif.classList.toggle('active', mode === 'gif');
     if (gifSearchRow) gifSearchRow.style.display = mode === 'gif' ? 'flex' : 'none';
 
-    if (mode === 'emoji') renderEmojiGrid();
+    if (mode === 'emoji') { ensureEmojiSearch(); renderEmojiGrid(); }
     else if (mode === 'sticker') renderStickerGrid();
     else if (mode === 'gif') renderGifGrid(gifInput ? gifInput.value.trim() : undefined);
 }
@@ -148,7 +199,16 @@ function setMediaMode(mode) {
 if (emojiToggle && mediaPanel) {
     emojiToggle.addEventListener('click', () => {
         mediaPanel.classList.toggle('open');
-        if (mediaPanel.classList.contains('open')) setMediaMode(mediaMode);
+        if (mediaPanel.classList.contains('open')) {
+            setMediaMode(mediaMode);
+            // Focus search if emoji tab is active
+            if (mediaMode === 'emoji') {
+                setTimeout(() => {
+                    const s = document.getElementById('emojiSearchInput');
+                    if (s) s.focus();
+                }, 80);
+            }
+        }
     });
 }
 

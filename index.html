@@ -17,6 +17,7 @@
             <span>Supabase Chat Pro</span>
             <div class="header-actions">
                 <button id="dmToggle" title="Mensajes privados" style="display:none;">💬</button>
+                <button id="gameToggle" title="Juegos">🎮</button>
                 <button id="musicToggle" title="Radio / Música">🎵</button>
                 <button id="themeToggle">☀️</button>
                 <button id="hideChatBtn" title="Ocultar chat">🙈</button>
@@ -66,6 +67,18 @@
             </div>
             <p class="music-hint" id="musicHint"></p>
             <div class="radio-results" id="radioResults"></div>
+        </div>
+
+        <!-- PANEL DE JUEGOS (iframe embebido, se cierra al elegir otro juego o cerrar) -->
+        <div class="game-panel" id="gamePanel" style="display:none;">
+            <div class="game-panel-header">
+                <span class="game-panel-title" id="gamePanelTitle">🎮 Juegos</span>
+                <button id="gamePanelClose" title="Cerrar">✕</button>
+            </div>
+            <div class="game-list" id="gameList"></div>
+            <div class="game-frame-wrap" id="gameFrameWrap" style="display:none;">
+                <iframe id="gameFrame" src="" frameborder="0" allowfullscreen allow="autoplay; fullscreen"></iframe>
+            </div>
         </div>
 
         <!-- BARRA PARA CARGAR MENSAJES ANTERIORES (visible cuando hay más historial disponible) -->
@@ -182,6 +195,7 @@
     </div>
 
     <script src="js/passwords.js?v=20260722"></script>
+    <script src="js/games.js?v=20260722"></script>
     <script src="js/config.js?v=20260722"></script>
     <script src="js/auth.js?v=20260722"></script>
     <script src="js/lock.js?v=20260722"></script>

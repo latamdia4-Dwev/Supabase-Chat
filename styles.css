@@ -1246,3 +1246,106 @@ html.brightness-dimmed {
         transform: translateY(0);
     }
 }
+/* ── PANEL DE JUEGOS ─────────────────────────────────────────────────── */
+.game-panel {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: var(--bg-container);
+    z-index: 450;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.game-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: var(--bg-header);
+    color: var(--text-header);
+    border-bottom: 2px solid #3ecf8e;
+    flex-shrink: 0;
+}
+
+.game-panel-title {
+    font-weight: bold;
+    font-size: 1em;
+}
+
+.game-panel-header button {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
+/* Grid of game cards */
+.game-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 12px;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+.game-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 12px 8px;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.15s, border-color 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.game-card:hover {
+    background: rgba(62,207,142,0.12);
+    border-color: #3ecf8e;
+}
+
+.game-card.active {
+    background: rgba(62,207,142,0.2);
+    border-color: #3ecf8e;
+}
+
+.game-card-icon {
+    font-size: 2em;
+    line-height: 1;
+}
+
+.game-card-name {
+    font-size: 0.75em;
+    color: var(--text-msg-received);
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.game-card-tag {
+    font-size: 0.65em;
+    color: #3ecf8e;
+    opacity: 0.8;
+}
+
+/* iframe wrapper — expands to fill remaining space */
+.game-frame-wrap {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.game-frame-wrap iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
