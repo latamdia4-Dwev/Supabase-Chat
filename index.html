@@ -37,6 +37,17 @@
             <audio id="audioPlayer"></audio>
         </div>
 
+        <!-- BARRA DE PROGRESO: tiempo actual / duración, con arrastre para
+             saltar al segundo exacto. Solo tiene sentido para pistas con
+             duración finita (canciones y "Mi música"); en radio en vivo
+             (duración = Infinity) se oculta, ya que no hay un punto fijo
+             al que saltar. -->
+        <div class="music-progress-bar" id="musicProgressBar" style="display: none;">
+            <span class="progress-time" id="progressCurrentTime">0:00</span>
+            <input type="range" id="progressSlider" min="0" max="100" value="0" step="1">
+            <span class="progress-time" id="progressDuration">0:00</span>
+        </div>
+
         <!-- PANEL DESPLEGABLE DE BÚSQUEDA (se cierra automáticamente al elegir una estación/canción) -->
         <div class="music-panel" id="musicPanel">
             <div class="music-tabs">

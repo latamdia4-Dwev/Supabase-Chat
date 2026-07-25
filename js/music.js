@@ -91,6 +91,53 @@ if (audioPlayer) {
     audioPlayer.addEventListener('ended', handleTrackEnded);
 }
 
+// --- BARRA DE PROGRESO (tiempo actual, duración, saltar al segundo exacto) ---
+// isSeeking evita que timeupdate pelee con el arrastre manual del usuario
+// mientras tiene el slider agarrado.
+let isSeeking = false;
+
+function formatTime(seconds) {
+    if (!isFinite(seconds) || isNaN(seconds) || seconds < 0) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+// Radio en vivo tiene duration = Infinity (o NaN antes de cargar): ahí no
+// existe un "segundo exacto" al que saltar, así que se oculta la barra.
+function updateProgressVisibility() {
+    if (!musicProgressBar || !audioPlayer) return;
+    const hasFiniteDuration = isFinite(audioPlayer.duration) && audioPlayer.duration > 0;
+    musicProgressBar.style.display = hasFiniteDuration ? 'flex' : 'none';
+}
+
+if (audioPlayer) {
+    audioPlayer.addEventListener('loadedmetadata', () => {
+        updateProgressVisibility();
+        if (progressSlider) progressSlider.max = Math.floor(audioPlayer.duration) || 0;
+        if (progressDuration) progressDuration.textContent = formatTime(audioPlayer.duration);
+    });
+
+    audioPlayer.addEventListener('timeupdate', () => {
+        if (isSeeking) return;
+        updateProgressVisibility();
+        if (progressSlider) progressSlider.value = Math.floor(audioPlayer.currentTime) || 0;
+        if (progressCurrentTime) progressCurrentTime.textContent = formatTime(audioPlayer.currentTime);
+    });
+}
+
+if (progressSlider) {
+    progressSlider.addEventListener('input', () => {
+        isSeeking = true;
+        if (progressCurrentTime) progressCurrentTime.textContent = formatTime(progressSlider.value);
+    });
+
+    progressSlider.addEventListener('change', () => {
+        if (audioPlayer) audioPlayer.currentTime = Number(progressSlider.value);
+        isSeeking = false;
+    });
+}
+
 // --- MEDIA SESSION API ---
 // Conecta los controles nativos del sistema/navegador (la ventanita de medios
 // que muestra Windows/Chrome con play, pausa, siguiente y anterior) con

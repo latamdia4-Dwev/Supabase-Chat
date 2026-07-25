@@ -449,6 +449,31 @@ body {
     box-shadow: 0 0 0 2px #3ecf8e inset;
 }
 
+.music-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 8px 12px;
+    background: var(--bg-preview);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.progress-time {
+    font-size: 0.7em;
+    opacity: 0.65;
+    color: var(--text-msg-received);
+    flex-shrink: 0;
+    min-width: 30px;
+    text-align: center;
+}
+
+#progressSlider {
+    flex: 1;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+}
+
 /* PANEL DESPLEGABLE DE BÚSQUEDA DE RADIO */
 .music-panel {
     max-height: 0;
