@@ -107,6 +107,22 @@ const lightboxModal = document.getElementById('lightboxModal');
 const lightboxImg = document.getElementById('lightboxImg');
 const lightboxClose = document.getElementById('lightboxClose');
 
+// Referencias a los elementos del DOM (mensajes privados 1 a 1)
+const dmToggle = document.getElementById('dmToggle');
+const dmPanel = document.getElementById('dmPanel');
+const dmBackBtn = document.getElementById('dmBackBtn');
+const dmTitle = document.getElementById('dmTitle');
+const dmCloseBtn = document.getElementById('dmCloseBtn');
+const dmListView = document.getElementById('dmListView');
+const dmSearchInput = document.getElementById('dmSearchInput');
+const dmSearchBtn = document.getElementById('dmSearchBtn');
+const dmResults = document.getElementById('dmResults');
+const dmConversations = document.getElementById('dmConversations');
+const dmChatView = document.getElementById('dmChatView');
+const dmMessages = document.getElementById('dmMessages');
+const dmMsgInput = document.getElementById('dmMsgInput');
+const dmSendBtn = document.getElementById('dmSendBtn');
+
 // Variables de estado del Chat y Sesión
 const mySessionId = Math.random().toString(36).substring(2, 9);
 let queueFiles = [];

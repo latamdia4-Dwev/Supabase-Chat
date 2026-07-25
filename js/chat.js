@@ -1,23 +1,11 @@
-// js/chat.js (Módulo de Mensajería, Storage y Cola de Vista Previa Completo)
-// NOTA: previewContainer, fileInput, msgInput, messagesContainer, sendBtn, form,
-// mySessionId, queueFiles, isAdmin y supabaseClient YA están declarados en config.js
-// (que se carga antes que este archivo). NO se redeclaran aquí para evitar
-// "Identifier has already been declared" (SyntaxError que aborta todo el script).
-
-// --- PAGINACIÓN DEL HISTORIAL (carga perezosa hacia atrás) ---
-// Cuántos mensajes se muestran automáticamente al entrar al chat.
-// Ponlo en 0 para que no se muestre ningún mensaje hasta que se pulse
-// "Cargar mensajes anteriores".
+// js/chat.js
 const INITIAL_MESSAGES_COUNT = 0;
-
-// Cuántos mensajes se cargan cada vez que se pulsa "Cargar mensajes anteriores".
 const MESSAGES_PAGE_SIZE = 20;
 
 let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
 
-// SOPORTE PARA PEGAR (PASTE) DESDE EL PORTAPAPELES
 document.addEventListener('paste', async (event) => {
     const clipboardData = event.clipboardData || event.originalEvent.clipboardData;
     if (!clipboardData) return;
@@ -25,7 +13,6 @@ document.addEventListener('paste', async (event) => {
     let handledLegacy = false;
     let sawFileItemButEmpty = false;
 
-    // Método clásico (funciona bien para imágenes y videos pequeños)
     for (let i = 0; i < items.length; i++) {
         if (items[i].kind === 'file') {
             const file = items[i].getAsFile();
@@ -41,15 +28,10 @@ document.addEventListener('paste', async (event) => {
 
     if (handledLegacy) return;
 
-    // Respaldo con la API moderna del portapapeles: el método clásico de
-    // arriba a veces entrega el archivo vacío/incompleto cuando es grande
-    // (típico en videos de captura de pantalla). Si eso pasó, lo intentamos
-    // de nuevo con navigator.clipboard.read(), que maneja mejor binarios grandes.
     if (navigator.clipboard && navigator.clipboard.read) {
         try {
             const clipboardItems = await navigator.clipboard.read();
             let handledModern = false;
-
             for (const clipboardItem of clipboardItems) {
                 for (const type of clipboardItem.types) {
                     if (type.startsWith('image/') || type.startsWith('video/')) {
@@ -64,21 +46,17 @@ document.addEventListener('paste', async (event) => {
                     }
                 }
             }
-
             if (!handledModern && sawFileItemButEmpty) {
-                alert('El portapapeles contiene un video/imagen, pero llegó vacío (0 bytes) tanto por el método clásico como por el moderno. Es probable que sea un límite del navegador con archivos grandes copiados por esta herramienta.');
+                alert('El portapapeles contiene un video/imagen, pero llegó vacío (0 bytes).');
             }
         } catch (err) {
-            alert('No se pudo leer el portapapeles con la API moderna. Error: ' + (err && err.message ? err.message : err));
+            alert('No se pudo leer el portapapeles: ' + (err && err.message ? err.message : err));
         }
     } else if (sawFileItemButEmpty) {
-        alert('El portapapeles contiene un archivo, pero llegó vacío (0 bytes), y este navegador no soporta el método de respaldo (navigator.clipboard.read). Intenta con Chrome de escritorio actualizado.');
+        alert('El archivo llegó vacío y este navegador no soporta el método de respaldo.');
     }
 });
 
-// Supabase Storage rechaza keys con acentos, paréntesis u otros caracteres
-// especiales ("Invalid key"). Limpia el nombre real del archivo antes de
-// subirlo, conservando la extensión.
 function sanitizeFileName(rawName) {
     const dotIndex = rawName.lastIndexOf('.');
     const ext = dotIndex > -1 ? rawName.slice(dotIndex) : '';
@@ -89,19 +67,14 @@ function sanitizeFileName(rawName) {
     return cleanBase + ext;
 }
 
-// DIBUJAR Y ELIMINAR MINIATURAS EN LA COLA PRE-ENVÍO
 function updateFilePreview() {
     if (!previewContainer) return;
-
     previewContainer.innerHTML = '';
-
     if (queueFiles.length > 0) {
         previewContainer.style.display = 'flex';
-
         queueFiles.forEach((file, index) => {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'preview-item';
-
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn-remove';
             removeBtn.textContent = '×';
@@ -111,7 +84,6 @@ function updateFilePreview() {
                 updateFilePreview();
             };
             itemDiv.appendChild(removeBtn);
-
             if (file.type.startsWith('image/')) {
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(file);
@@ -120,7 +92,6 @@ function updateFilePreview() {
                 const video = document.createElement('video');
                 video.src = URL.createObjectURL(file);
                 video.muted = true;
-                video.autoplay = false;
                 itemDiv.appendChild(video);
             } else {
                 const icon = document.createElement('div');
@@ -135,23 +106,14 @@ function updateFilePreview() {
     }
 }
 
-// Escuchar la selección de múltiples archivos
 if (fileInput) {
     fileInput.addEventListener('change', () => {
-        const files = Array.from(fileInput.files);
-        queueFiles = queueFiles.concat(files);
+        queueFiles = queueFiles.concat(Array.from(fileInput.files));
         updateFilePreview();
     });
 }
 
-// --- REACCIONES CON EMOJI (tabla message_reactions + auth.uid()) ---
-// Usa la tabla "message_reactions" (message_id, user_id, emoji) en vez de una
-// columna jsonb en "messages". La identidad de quién reaccionó es el usuario
-// real autenticado en Supabase (auth.uid()), NO el mySessionId aleatorio que
-// se usa para "sender_id" de los mensajes de este chat.
-//
-// currentUserId se llena con refreshCurrentUserId() al cargar el chat y
-// después de cada login exitoso (ver lock.js).
+// --- REACTIONS ---
 let currentUserId = null;
 
 async function refreshCurrentUserId() {
@@ -160,16 +122,25 @@ async function refreshCurrentUserId() {
         if (error) throw error;
         currentUserId = data && data.user ? data.user.id : null;
     } catch (err) {
-        console.error('No se pudo obtener el usuario autenticado para reacciones:', err);
         currentUserId = null;
     }
 }
 
-const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
-let openReactionPickerId = null;
+// Quick-access bar shown at the top of the picker
+const REACTION_QUICK = ['👍','❤️','😂','😮','😢','🙏','🔥','🎉','👀','💯'];
 
-// Caché en memoria: { [messageId]: { [emoji]: [user_id, user_id, ...] } }
-// Se llena al cargar mensajes y se mantiene al día con Realtime.
+const REACTION_CATEGORIES = [
+    { label: '😀 Caras', emojis: ['😀','😃','😄','😁','😆','😅','🤣','😂','🙂','🙃','😉','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','😐','😑','😶','😏','😒','🙄','😬','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🥵','🥶','😵','🤯','🥳','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖'] },
+    { label: '👋 Gestos', emojis: ['👍','👎','👏','🙌','🤲','🤝','🙏','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','👋','🤚','🖐️','✋','🖖','💪','🦵','🦶','👂','👃','👁️','👀','👅','💋'] },
+    { label: '❤️ Corazones', emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️','💕','💞','💓','💗','💖','💘','💝','💟','❤️‍🔥','❤️‍🩹'] },
+    { label: '🎉 Celebración', emojis: ['🎉','🎊','🎈','🎁','🎂','🍰','🥂','🍾','🏆','🥇','🎯','🎮','🎪','🎭','🎨','🎬','🎤','🎧','🎵','🎶','🎸','🥁','🎷','🎺','🎻','🪗'] },
+    { label: '🔥 Símbolos', emojis: ['🔥','✨','💫','⭐','🌟','💥','❄️','🌈','☀️','🌙','⚡','🌊','💦','🍀','🌸','🌺','🌻','🌹','💐','🍁','🍂','🍃','🌿','💯','✅','❌','⚠️','🚨','💡','🔑','🔒','🔓','🎯','💎','👑'] },
+    { label: '🐶 Animales', emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🙈','🙉','🙊','🐔','🐧','🐦','🦆','🦉','🦇','🐺','🐴','🦄','🐝','🦋','🐞','🐢','🐍','🦎','🐙','🦑','🐬','🐳'] },
+    { label: '🍕 Comida', emojis: ['🍕','🍔','🌮','🌯','🍜','🍝','🍣','🍱','🍛','🍲','🥘','🍗','🍖','🥩','🥓','🌭','🥚','🍳','🧇','🥞','🍞','🥐','🥗','🍎','🍊','🍋','🍇','🍓','🍒','☕','🍵','🧋','🍺','🍻','🥃','🍷','🥂','🍾'] }
+];
+
+let openReactionPickerId = null;
+let reactionPickerSearchTerm = '';
 const messageReactionsCache = {};
 
 function addReactionToCache(messageId, emoji, userId) {
@@ -188,20 +159,15 @@ function removeReactionFromCache(messageId, emoji, userId) {
     }
 }
 
-// Trae de Supabase las reacciones existentes de un lote de mensajes (por
-// ejemplo, justo después de renderizar una tanda del historial) y las pinta.
 async function loadReactionsForMessages(messageIds) {
     if (!messageIds || messageIds.length === 0) return;
-
     try {
         const { data, error } = await supabaseClient
             .from('message_reactions')
             .select('message_id, user_id, emoji')
             .in('message_id', messageIds);
         if (error) throw error;
-
         (data || []).forEach(r => addReactionToCache(r.message_id, r.emoji, r.user_id));
-
         messageIds.forEach(id => {
             const msgDiv = document.getElementById(`msg-${id}`);
             if (msgDiv) renderReactions(msgDiv, id, messageReactionsCache[id] || {});
@@ -211,71 +177,126 @@ async function loadReactionsForMessages(messageIds) {
     }
 }
 
-// Cierra y quita del DOM cualquier selector de emojis abierto
 function closeReactionPicker() {
-    const existing = document.querySelector('.reaction-picker');
+    const existing = document.querySelector('.reaction-picker-full');
     if (existing) existing.remove();
     openReactionPickerId = null;
 }
 
-// Clic en cualquier otra parte de la página cierra el selector abierto
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.reaction-picker') && !e.target.closest('.btn-react')) {
+    if (!e.target.closest('.reaction-picker-full') && !e.target.closest('.btn-react')) {
         closeReactionPicker();
     }
 });
 
-// Abre el selector de emojis flotando encima del botón 😊 del mensaje.
-// Se agrega a document.body con position:fixed (en vez de dentro del mensaje)
-// porque .chat-messages tiene overflow-y:auto, y eso recorta cualquier hijo
-// absolute que se salga del área visible/scrolleable.
 function openReactionPicker(msgId, anchorBtn) {
     closeReactionPicker();
+    openReactionPickerId = msgId;
 
+    // --- PICKER CONTAINER ---
     const picker = document.createElement('div');
-    picker.className = 'reaction-picker';
+    picker.className = 'reaction-picker-full';
+    picker.style.cssText = `
+        position:fixed;width:300px;max-height:340px;
+        background:var(--bg-preview, #161616);border:1px solid #333;
+        border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.6);
+        z-index:10002;display:flex;flex-direction:column;overflow:hidden;
+    `;
 
-    REACTION_EMOJIS.forEach(emoji => {
-        const span = document.createElement('span');
-        span.textContent = emoji;
-        span.onclick = (e) => {
-            e.stopPropagation();
-            toggleReaction(msgId, emoji);
-        };
-        picker.appendChild(span);
+    // Quick-access row
+    const quickRow = document.createElement('div');
+    quickRow.style.cssText = 'display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;';
+    REACTION_QUICK.forEach(emoji => {
+        const btn = document.createElement('span');
+        btn.textContent = emoji;
+        btn.style.cssText = 'font-size:1.3em;cursor:pointer;padding:3px;border-radius:6px;transition:transform 0.1s;';
+        btn.addEventListener('mouseenter', () => btn.style.transform = 'scale(1.3)');
+        btn.addEventListener('mouseleave', () => btn.style.transform = 'scale(1)');
+        btn.onclick = (e) => { e.stopPropagation(); toggleReaction(msgId, emoji); };
+        quickRow.appendChild(btn);
     });
+    picker.appendChild(quickRow);
 
+    // Search input
+    const searchWrap = document.createElement('div');
+    searchWrap.style.cssText = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.07);';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = '🔍 Buscar emoji...';
+    searchInput.style.cssText = `
+        width:100%;box-sizing:border-box;padding:7px 12px;border-radius:20px;
+        border:1px solid #333;background:#1a1a1a;color:#fff;font-size:0.85em;outline:none;
+    `;
+    searchWrap.appendChild(searchInput);
+    picker.appendChild(searchWrap);
+
+    // Scrollable body: categories + grids
+    const body = document.createElement('div');
+    body.style.cssText = 'overflow-y:auto;flex:1;padding:6px 6px 10px 6px;';
+
+    function renderBody(filter) {
+        body.innerHTML = '';
+        const term = (filter || '').toLowerCase();
+
+        REACTION_CATEGORIES.forEach(cat => {
+            const filtered = term
+                ? cat.emojis.filter(e => e.includes(term) || cat.label.toLowerCase().includes(term))
+                : cat.emojis;
+            if (filtered.length === 0) return;
+
+            const catLabel = document.createElement('div');
+            catLabel.textContent = cat.label;
+            catLabel.style.cssText = 'font-size:0.7em;color:#888;padding:6px 4px 3px 4px;font-weight:bold;';
+            body.appendChild(catLabel);
+
+            const grid = document.createElement('div');
+            grid.style.cssText = 'display:flex;flex-wrap:wrap;gap:2px;';
+            filtered.forEach(emoji => {
+                const btn = document.createElement('span');
+                btn.textContent = emoji;
+                btn.style.cssText = 'font-size:1.25em;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.1s;';
+                btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(62,207,142,0.18)');
+                btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
+                btn.onclick = (e) => { e.stopPropagation(); toggleReaction(msgId, emoji); };
+                grid.appendChild(btn);
+            });
+            body.appendChild(grid);
+        });
+
+        if (body.innerHTML === '') {
+            body.innerHTML = '<div style="color:#888;font-size:0.82em;text-align:center;padding:16px;">Sin resultados</div>';
+        }
+    }
+
+    renderBody('');
+    searchInput.addEventListener('input', () => renderBody(searchInput.value.trim()));
+    searchInput.addEventListener('click', e => e.stopPropagation());
+
+    picker.appendChild(body);
     document.body.appendChild(picker);
 
+    // Position: prefer above the anchor, fallback below, keep inside viewport
     const rect = anchorBtn.getBoundingClientRect();
-    const pickerRect = picker.getBoundingClientRect();
-
-    let left = rect.right - pickerRect.width;
-    left = Math.max(8, Math.min(left, window.innerWidth - pickerRect.width - 8));
-
-    let top = rect.top - pickerRect.height - 6;
-    if (top < 8) top = rect.bottom + 6; // si no cabe arriba, se abre abajo
-
+    const pw = 300, ph = 340;
+    let left = Math.min(rect.left, window.innerWidth - pw - 8);
+    left = Math.max(8, left);
+    let top = rect.top - ph - 6;
+    if (top < 8) top = rect.bottom + 6;
     picker.style.left = `${left}px`;
     picker.style.top = `${top}px`;
 
-    openReactionPickerId = msgId;
+    setTimeout(() => searchInput.focus(), 50);
 }
 
-// Dibuja (o redibuja) las píldoras de reacciones de un mensaje ya en el DOM
 function renderReactions(msgDiv, msgId, reactions) {
     let container = msgDiv.querySelector('.message-reactions');
     if (!container) {
         container = document.createElement('div');
         container.className = 'message-reactions';
         const timeSpan = msgDiv.querySelector('.msg-time');
-        if (timeSpan) {
-            msgDiv.insertBefore(container, timeSpan);
-        } else {
-            msgDiv.appendChild(container);
-        }
+        if (timeSpan) msgDiv.insertBefore(container, timeSpan);
+        else msgDiv.appendChild(container);
     }
-
     container.innerHTML = '';
     Object.entries(reactions || {})
         .filter(([, users]) => users && users.length > 0)
@@ -289,53 +310,29 @@ function renderReactions(msgDiv, msgId, reactions) {
         });
 }
 
-// Agrega o quita la reacción del usuario autenticado a un mensaje: inserta o
-// borra la fila correspondiente en "message_reactions". El repintado real
-// llega por Realtime (ver el canal más abajo), no aquí directamente — así
-// todas las pestañas/dispositivos quedan sincronizados de la misma forma.
 async function toggleReaction(msgId, emoji) {
     closeReactionPicker();
-
-    if (isGuest) {
-        alert('Inicia sesión con tu cuenta para reaccionar.');
-        return;
-    }
-
-    if (!currentUserId) {
-        alert('No se pudo identificar tu sesión para reaccionar. Intenta recargar el chat.');
-        return;
-    }
-
+    if (isGuest && !isAdmin) { alert('Inicia sesión con tu cuenta para reaccionar.'); return; }
+    if (!currentUserId) { alert('No se pudo identificar tu sesión. Intenta recargar.'); return; }
     try {
         const { data: existing, error: selError } = await supabaseClient
-            .from('message_reactions')
-            .select('id')
-            .eq('message_id', msgId)
-            .eq('user_id', currentUserId)
-            .eq('emoji', emoji)
-            .maybeSingle();
+            .from('message_reactions').select('id')
+            .eq('message_id', msgId).eq('user_id', currentUserId).eq('emoji', emoji).maybeSingle();
         if (selError) throw selError;
-
         if (existing) {
-            const { error: delError } = await supabaseClient
-                .from('message_reactions')
-                .delete()
-                .eq('id', existing.id);
-            if (delError) throw delError;
+            const { error } = await supabaseClient.from('message_reactions').delete().eq('id', existing.id);
+            if (error) throw error;
         } else {
-            const { error: insError } = await supabaseClient
-                .from('message_reactions')
-                .insert([{ message_id: msgId, user_id: currentUserId, emoji: emoji }]);
-            if (insError) throw insError;
+            const { error } = await supabaseClient.from('message_reactions')
+                .insert([{ message_id: msgId, user_id: currentUserId, emoji }]);
+            if (error) throw error;
         }
     } catch (err) {
         console.error('Error al reaccionar:', err);
-        alert('No se pudo guardar tu reacción (revisa que tu cuenta tenga permiso).');
+        alert('No se pudo guardar tu reacción.');
     }
 }
 
-// ESCUCHA REALTIME DE LA TABLA message_reactions (canal separado del de
-// "messages" de más abajo, para mantener el código de cada tabla aislado)
 supabaseClient
     .channel('schema-db-changes-reactions')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions' }, payload => {
@@ -352,16 +349,25 @@ supabaseClient
     })
     .subscribe();
 
-// RENDERIZAR MENSAJES EN EL HISTORIAL (Con soporte de Video e Inyección de Hora)
-// prepend=true inserta el mensaje al inicio (usado al cargar mensajes anteriores)
+// --- RENDER MESSAGE ---
 function renderMessage(msg, prepend = false) {
     if (!messagesContainer) return;
-    if (msg.hidden) return; // No mostrar mensajes ocultados por el administrador
+    if (msg.hidden) return;
 
-    const isMe = msg.sender_id === mySessionId;
+    // sender_id is ephemeral (changes each page load); also match by username
+    // so messages from previous sessions appear on the right side.
+    const isMe = msg.sender_id === mySessionId ||
+        (!isGuest && myUsername && msg.username === myUsername);
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${isMe ? 'sent' : 'received'}`;
     msgDiv.id = `msg-${msg.id}`;
+
+    // Show sender name on every message so participants know who wrote what
+    const displayName = msg.username || 'Anónimo';
+    const nameSpan = document.createElement('span');
+    nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:#3ecf8e;margin-bottom:3px;opacity:0.9;';
+    nameSpan.textContent = isMe ? `${displayName} (tú)` : displayName;
+    msgDiv.appendChild(nameSpan);
 
     if (msg.text) {
         const textPara = document.createElement('p');
@@ -377,7 +383,7 @@ function renderMessage(msg, prepend = false) {
             const video = document.createElement('video');
             video.src = msg.image_url;
             video.controls = true;
-            video.preload = "metadata";
+            video.preload = 'metadata';
             msgDiv.appendChild(video);
         } else {
             const img = document.createElement('img');
@@ -388,12 +394,9 @@ function renderMessage(msg, prepend = false) {
     }
 
     const dateObj = msg.created_at ? new Date(msg.created_at) : new Date();
-    const hours = String(dateObj.getHours()).padStart(2, '0');
-    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-
     const timeSpan = document.createElement('span');
     timeSpan.className = 'msg-time';
-    timeSpan.textContent = `${hours}:${minutes}`;
+    timeSpan.textContent = `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
     msgDiv.appendChild(timeSpan);
 
     const deleteBtn = document.createElement('button');
@@ -402,24 +405,16 @@ function renderMessage(msg, prepend = false) {
     deleteBtn.onclick = () => deleteMessage(msg.id);
     msgDiv.appendChild(deleteBtn);
 
-    // BOTÓN PARA REACCIONAR (abre el selector de emojis tipo Slack/WhatsApp)
     const reactBtn = document.createElement('button');
     reactBtn.className = 'btn-react';
     reactBtn.textContent = '😊';
     reactBtn.title = 'Reaccionar';
     reactBtn.onclick = (e) => {
         e.stopPropagation();
-        if (openReactionPickerId === msg.id) {
-            closeReactionPicker();
-        } else {
-            openReactionPicker(msg.id, reactBtn);
-        }
+        openReactionPickerId === msg.id ? closeReactionPicker() : openReactionPicker(msg.id, reactBtn);
     };
     msgDiv.appendChild(reactBtn);
 
-    // Pinta las reacciones que ya estén en caché para este mensaje (si el
-    // lote de mensajes recién se cargó, loadReactionsForMessages las trae
-    // después y vuelve a llamar a renderReactions).
     renderReactions(msgDiv, msg.id, messageReactionsCache[msg.id] || {});
 
     if (prepend) {
@@ -430,93 +425,52 @@ function renderMessage(msg, prepend = false) {
     }
 }
 
-// CARGAR MENSAJES AL ABRIR EL CHAT (respeta INITIAL_MESSAGES_COUNT)
 async function loadInitialMessages() {
     try {
         messagesContainer.innerHTML = '';
-
         if (INITIAL_MESSAGES_COUNT > 0) {
             const { data, error } = await supabaseClient
-                .from('messages')
-                .select('*')
-                .eq('hidden', false)
-                .order('created_at', { ascending: false })
-                .limit(INITIAL_MESSAGES_COUNT);
-
+                .from('messages').select('*').eq('hidden', false)
+                .order('created_at', { ascending: false }).limit(INITIAL_MESSAGES_COUNT);
             if (error) throw error;
-
             if (data && data.length > 0) {
-                const ordered = data.slice().reverse(); // de más antiguo a más reciente
+                const ordered = data.slice().reverse();
                 ordered.forEach(msg => renderMessage(msg));
-                loadReactionsForMessages(ordered.map(msg => msg.id));
+                loadReactionsForMessages(ordered.map(m => m.id));
                 oldestMessageTimestamp = ordered[0].created_at;
                 noMoreOlderMessages = data.length < INITIAL_MESSAGES_COUNT;
             } else {
                 noMoreOlderMessages = true;
             }
         } else {
-            // No se muestra nada al entrar. Usamos la hora actual como punto de
-            // partida, así "Cargar mensajes anteriores" trae los mensajes más
-            // recientes existentes la primera vez que se presiona.
             oldestMessageTimestamp = new Date().toISOString();
             noMoreOlderMessages = false;
         }
-
         updateLoadMoreBar();
     } catch (error) {
-        console.error("Error al cargar mensajes:", error);
+        console.error('Error al cargar mensajes:', error);
     }
 }
 
-// CARGAR MENSAJES ANTERIORES (al hacer clic en la barra "Cargar mensajes anteriores"
-// o, como atajo adicional, al deslizar hasta el tope del historial si es que hay scroll)
 async function loadOlderMessages() {
     if (isLoadingOlderMessages || noMoreOlderMessages || !oldestMessageTimestamp || !messagesContainer) return;
     isLoadingOlderMessages = true;
-
-    if (loadMoreBar) {
-        loadMoreBar.textContent = 'Cargando...';
-        loadMoreBar.disabled = true;
-    }
-
+    if (loadMoreBar) { loadMoreBar.textContent = 'Cargando...'; loadMoreBar.disabled = true; }
     try {
         const { data, error } = await supabaseClient
-            .from('messages')
-            .select('*')
-            .eq('hidden', false)
+            .from('messages').select('*').eq('hidden', false)
             .lt('created_at', oldestMessageTimestamp)
-            .order('created_at', { ascending: false })
-            .limit(MESSAGES_PAGE_SIZE);
-
+            .order('created_at', { ascending: false }).limit(MESSAGES_PAGE_SIZE);
         if (error) throw error;
-
-        if (!data || data.length === 0) {
-            noMoreOlderMessages = true;
-            return;
-        }
-
-        // Guardamos la altura previa para mantener la posición visual del scroll
+        if (!data || data.length === 0) { noMoreOlderMessages = true; return; }
         const previousScrollHeight = messagesContainer.scrollHeight;
-
-        // IMPORTANTE: NO se invierte el array aquí. `data` ya viene en orden
-        // descendente (más reciente primero). Como renderMessage(msg, true)
-        // inserta cada uno como nuevo primer hijo (insertBefore firstChild),
-        // recorrer `data` en su orden original (descendente) hace que terminen
-        // apilados correctamente de más viejo (arriba) a más reciente (abajo).
-        // Si se invertía antes con .reverse(), se producía una doble inversión
-        // que desordenaba la conversación.
         data.forEach(msg => renderMessage(msg, true));
-        loadReactionsForMessages(data.map(msg => msg.id));
-
-        // El mensaje más viejo del lote es el ÚLTIMO elemento de `data`
-        // (por venir en orden descendente), no el primero.
+        loadReactionsForMessages(data.map(m => m.id));
         oldestMessageTimestamp = data[data.length - 1].created_at;
         if (data.length < MESSAGES_PAGE_SIZE) noMoreOlderMessages = true;
-
-        const newScrollHeight = messagesContainer.scrollHeight;
-        messagesContainer.scrollTop = newScrollHeight - previousScrollHeight;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight - previousScrollHeight;
     } catch (error) {
-        console.error("Error al cargar mensajes anteriores:", error);
+        console.error('Error al cargar mensajes anteriores:', error);
     } finally {
         isLoadingOlderMessages = false;
         if (loadMoreBar) loadMoreBar.disabled = false;
@@ -524,7 +478,6 @@ async function loadOlderMessages() {
     }
 }
 
-// Muestra u oculta la barra "Cargar mensajes anteriores" según si queda historial
 function updateLoadMoreBar() {
     if (!loadMoreBar) return;
     if (noMoreOlderMessages) {
@@ -535,41 +488,27 @@ function updateLoadMoreBar() {
     }
 }
 
-if (loadMoreBar) {
-    loadMoreBar.addEventListener('click', loadOlderMessages);
-}
+if (loadMoreBar) loadMoreBar.addEventListener('click', loadOlderMessages);
 
-// Atajo adicional: si el historial sí llega a ser más alto que el área visible,
-// deslizar hasta arriba también dispara la carga (además del botón de la barra).
 if (messagesContainer) {
     messagesContainer.addEventListener('scroll', () => {
-        if (messagesContainer.scrollTop < 40) {
-            loadOlderMessages();
-        }
+        if (messagesContainer.scrollTop < 40) loadOlderMessages();
         closeReactionPicker();
     });
 }
 
-// OCULTAR MENSAJE (no lo borra de la base de datos, solo lo marca como oculto
-// para que deje de mostrarse en la vista de todos)
 async function deleteMessage(id) {
     if (!isAdmin) return;
-    if (!confirm('¿Deseas ocultar este mensaje de la vista?')) return;
-
+    if (!confirm('¿Deseas ocultar este mensaje?')) return;
     try {
-        const { error } = await supabaseClient
-            .from('messages')
-            .update({ hidden: true })
-            .eq('id', id);
+        const { error } = await supabaseClient.from('messages').update({ hidden: true }).eq('id', id);
         if (error) throw error;
     } catch (error) {
         console.error(error);
-        alert('Error al intentar ocultar el mensaje.');
+        alert('Error al ocultar el mensaje.');
     }
 }
 
-// Mensajes que llegan por Realtime mientras el chat está oculto (candado activo);
-// se muestran recién cuando se desbloquea, para no filtrar contenido en pantalla.
 let pendingMessagesWhileHidden = [];
 
 function isChatCurrentlyHidden() {
@@ -581,14 +520,10 @@ function flushPendingMessages() {
     pendingMessagesWhileHidden = [];
 }
 
-// ESCUCHA REALTIME ACTIVA DE LA BASE DE DATOS
 supabaseClient
     .channel('schema-db-changes')
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        // Si ya se renderizó localmente al enviarlo (ver sendMessage), no lo
-        // dupliques cuando Realtime lo entregue de vuelta.
         if (document.getElementById(`msg-${payload.new.id}`)) return;
-
         if (isChatCurrentlyHidden()) {
             pendingMessagesWhileHidden.push(payload.new);
         } else {
@@ -596,18 +531,11 @@ supabaseClient
         }
     })
     .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
-        const deletedId = payload.old.id;
-        const el = document.getElementById(`msg-${deletedId}`);
+        const el = document.getElementById(`msg-${payload.old.id}`);
         if (el) el.remove();
-        // Si el mensaje eliminado estaba en la cola de pendientes (llegó y se borró
-        // mientras el chat estaba oculto), también se descarta de ahí.
-        pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== deletedId);
+        pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== payload.old.id);
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
-        // Cuando un mensaje se marca como oculto (hidden: true), se quita de
-        // la vista de todos al instante, sin recargar nada.
-        // (Las reacciones ya NO viven en esta tabla — se manejan aparte con
-        // su propio canal Realtime sobre "message_reactions", más arriba.)
         if (payload.new.hidden) {
             const el = document.getElementById(`msg-${payload.new.id}`);
             if (el) el.remove();
@@ -616,11 +544,10 @@ supabaseClient
     })
     .subscribe();
 
-// RESTRICCIÓN DE MODO INVITADO: solo puede ver el chat, no escribir ni reaccionar.
-// isGuest se define en config.js y se actualiza en lock.js al hacer login.
 function applyGuestRestrictions() {
     if (!msgInput || !sendBtn) return;
-    if (isGuest) {
+    const effectiveGuest = isGuest && !isAdmin;
+    if (effectiveGuest) {
         msgInput.placeholder = 'Solo lectura (invitado) 🔒';
         msgInput.disabled = true;
         sendBtn.disabled = true;
@@ -631,6 +558,7 @@ function applyGuestRestrictions() {
         sendBtn.disabled = false;
         if (guestLoginBtn) guestLoginBtn.style.display = 'none';
     }
+    if (dmToggle) dmToggle.style.display = isGuest ? 'none' : 'inline-block';
 }
 
 if (guestLoginBtn) {
@@ -640,41 +568,30 @@ if (guestLoginBtn) {
     });
 }
 
-// AUTO-REDIMENSIÓN DEL ÁREA DE TEXTO
 if (msgInput) {
     msgInput.addEventListener('input', () => {
         msgInput.style.height = 'auto';
-        msgInput.style.height = (msgInput.scrollHeight) + 'px';
+        msgInput.style.height = msgInput.scrollHeight + 'px';
     });
 }
 
-// ENVIAR MENSAJE CON LOGICA DE SUBIDA MULTIMEDIA A STORAGE
-// isSending bloquea reentradas (doble clic / Enter+clic) mientras el
-// insert/upload a Supabase sigue en curso, para no duplicar el mensaje.
 let isSending = false;
 
 async function sendMessage() {
-    if (isGuest) {
-        alert('Inicia sesión con tu cuenta para poder chatear.');
-        return;
-    }
+    if (isGuest && !isAdmin) { alert('Inicia sesión con tu cuenta para chatear.'); return; }
     if (isSending) return;
-
     const text = msgInput.value.trim();
     if (!text && queueFiles.length === 0) return;
 
     isSending = true;
-    if (sendBtn) {
-        sendBtn.disabled = true;
-        sendBtn.textContent = '…';
-    }
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = '…'; }
     if (msgInput) msgInput.disabled = true;
 
     try {
         if (queueFiles.length === 0) {
             const { data, error } = await supabaseClient
                 .from('messages')
-                .insert([{ text: text, sender_id: mySessionId }])
+                .insert([{ text, sender_id: mySessionId, username: myUsername || 'Anónimo' }])
                 .select();
             if (error) throw error;
             if (data && data[0]) renderMessage(data[0]);
@@ -684,24 +601,22 @@ async function sendMessage() {
                 const isVid = file.type.startsWith('video/');
                 const fileName = `${Date.now()}_${isVid ? 'video_' : 'file_'}${sanitizeFileName(file.name || 'archivo')}`;
 
-                const { data: uploadData, error: uploadError } = await supabaseClient.storage
-                    .from('chat-images')
-                    .upload(fileName, file);
-
+                const { error: uploadError } = await supabaseClient.storage
+                    .from('chat-images').upload(fileName, file);
                 if (uploadError) throw uploadError;
 
                 const { data: urlData } = supabaseClient.storage
-                    .from('chat-images')
-                    .getPublicUrl(fileName);
-
-                const imageUrl = urlData.publicUrl;
-                const currentText = (i === 0) ? text : '';
+                    .from('chat-images').getPublicUrl(fileName);
 
                 const { data: insertData, error: insertError } = await supabaseClient
                     .from('messages')
-                    .insert([{ text: currentText, image_url: imageUrl, sender_id: mySessionId }])
+                    .insert([{
+                        text: i === 0 ? text : '',
+                        image_url: urlData.publicUrl,
+                        sender_id: mySessionId,
+                        username: myUsername || 'Anónimo'
+                    }])
                     .select();
-
                 if (insertError) throw insertError;
                 if (insertData && insertData[0]) renderMessage(insertData[0]);
             }
@@ -713,32 +628,20 @@ async function sendMessage() {
         msgInput.style.height = 'auto';
     } catch (error) {
         console.error(error);
-        alert(`Fallo al enviar el mensaje: ${error.message}`);
+        alert(`Fallo al enviar: ${error.message}`);
     } finally {
         isSending = false;
-        if (sendBtn) {
-            sendBtn.disabled = false;
-            sendBtn.textContent = 'Enviar';
-        }
-        if (msgInput) {
-            msgInput.disabled = false;
-            msgInput.focus();
-        }
+        if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = 'Enviar'; }
+        if (msgInput) { msgInput.disabled = false; msgInput.focus(); }
     }
 }
 
-// ENVÍO RÁPIDO DE SOLO-IMAGEN (usado por stickers y GIFs desde
-// js/media-picker.js). Comparte la misma tabla y el mismo flujo de
-// renderizado que sendMessage(), para no duplicar esa lógica.
 async function sendQuickImageMessage(imageUrl) {
-    if (isGuest) {
-        alert('Inicia sesión con tu cuenta para poder chatear.');
-        return;
-    }
+    if (isGuest && !isAdmin) { alert('Inicia sesión con tu cuenta para chatear.'); return; }
     try {
         const { data, error } = await supabaseClient
             .from('messages')
-            .insert([{ text: '', image_url: imageUrl, sender_id: mySessionId }])
+            .insert([{ text: '', image_url: imageUrl, sender_id: mySessionId, username: myUsername || 'Anónimo' }])
             .select();
         if (error) throw error;
         if (data && data[0]) renderMessage(data[0]);
@@ -748,7 +651,6 @@ async function sendQuickImageMessage(imageUrl) {
     }
 }
 
-// Vinculación de gatillos de envío
 if (sendBtn) sendBtn.addEventListener('click', sendMessage);
 if (msgInput) {
     msgInput.addEventListener('keydown', (e) => {
@@ -759,7 +661,5 @@ if (msgInput) {
     });
 }
 
-// Inicializar al cargar el archivo
 refreshCurrentUserId();
 loadInitialMessages();
-

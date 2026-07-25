@@ -15,7 +15,7 @@
 //
 // Sin esa tabla y esas políticas, registerAccount() fallará al crear el perfil.
 
-const FAKE_EMAIL_DOMAIN = '@chatapp.local';
+const FAKE_EMAIL_DOMAIN = '@chatapp-users.com';
 
 function usernameToEmail(username) {
     return username.trim().toLowerCase().replace(/\s+/g, '_') + FAKE_EMAIL_DOMAIN;

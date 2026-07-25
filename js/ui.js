@@ -62,6 +62,7 @@ adminToggle.addEventListener('click', () => {
             isAdmin = true;
             chatContainer.classList.add('admin-mode');
             adminToggle.textContent = "🔓";
+            if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
             alert("Modo Administrador activado.");
         } else if (password !== null) {
             alert("Contraseña incorrecta.");
@@ -70,6 +71,7 @@ adminToggle.addEventListener('click', () => {
         isAdmin = false;
         chatContainer.classList.remove('admin-mode');
         adminToggle.textContent = "🔑";
+        if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
         alert("Modo Administrador desactivado.");
     }
 });
