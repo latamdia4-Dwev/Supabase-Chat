@@ -43,6 +43,8 @@ const dimIntensitySlider = document.getElementById('dimIntensitySlider');
 const loadMoreBar = document.getElementById('loadMoreBar');
 const prevTrackBtn = document.getElementById('prevTrackBtn');
 const nextTrackBtn = document.getElementById('nextTrackBtn');
+const shuffleBtn = document.getElementById('shuffleBtn');
+const repeatBtn = document.getElementById('repeatBtn');
 
 // Referencias a los elementos del DOM (bloqueo por contraseña)
 const lockOverlay = document.getElementById('lockOverlay');

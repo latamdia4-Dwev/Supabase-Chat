@@ -19,6 +19,78 @@ let currentMusicMode = 'radio'; // 'radio' o 'songs'
 let currentResultsList = [];
 let currentResultIndex = -1;
 
+// --- ALEATORIO Y REPETIR ---
+// repeatMode: 'off' (se detiene al llegar al final) -> 'all' (vuelve al
+// inicio de la lista) -> 'one' (repite la misma pista) -> 'off' ...
+let isShuffle = false;
+let repeatMode = 'off';
+
+function updateShuffleRepeatUI() {
+    if (shuffleBtn) shuffleBtn.classList.toggle('active', isShuffle);
+    if (repeatBtn) {
+        repeatBtn.classList.toggle('active', repeatMode !== 'off');
+        repeatBtn.textContent = repeatMode === 'one' ? '🔂' : '🔁';
+        repeatBtn.title = repeatMode === 'off' ? 'Repetir (desactivado)'
+            : repeatMode === 'all' ? 'Repetir toda la lista'
+            : 'Repetir esta pista';
+    }
+}
+
+if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', () => {
+        isShuffle = !isShuffle;
+        updateShuffleRepeatUI();
+    });
+}
+
+if (repeatBtn) {
+    repeatBtn.addEventListener('click', () => {
+        repeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+        updateShuffleRepeatUI();
+    });
+}
+
+updateShuffleRepeatUI();
+
+// Se dispara cuando termina la pista actual (canción, radio no aplica porque
+// es un stream continuo sin "fin", pero no estorba dejarlo genérico).
+function handleTrackEnded() {
+    if (!audioPlayer || currentResultsList.length === 0 || currentResultIndex === -1) return;
+
+    if (repeatMode === 'one') {
+        audioPlayer.currentTime = 0;
+        audioPlayer.play();
+        return;
+    }
+
+    if (isShuffle) {
+        if (currentResultsList.length === 1) {
+            audioPlayer.currentTime = 0;
+            audioPlayer.play();
+            return;
+        }
+        let randomIndex;
+        do {
+            randomIndex = Math.floor(Math.random() * currentResultsList.length);
+        } while (randomIndex === currentResultIndex);
+        playByIndex(randomIndex);
+        return;
+    }
+
+    const isLastTrack = currentResultIndex >= currentResultsList.length - 1;
+    if (isLastTrack && repeatMode === 'off') {
+        isPlaying = false;
+        if (playPauseBtn) playPauseBtn.textContent = '▶';
+        return; // termina la lista, no sigue
+    }
+
+    playByIndex(currentResultIndex + 1); // playByIndex ya hace el salto circular
+}
+
+if (audioPlayer) {
+    audioPlayer.addEventListener('ended', handleTrackEnded);
+}
+
 // --- MEDIA SESSION API ---
 // Conecta los controles nativos del sistema/navegador (la ventanita de medios
 // que muestra Windows/Chrome con play, pausa, siguiente y anterior) con

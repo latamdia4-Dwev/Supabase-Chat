@@ -444,6 +444,11 @@ body {
     flex-shrink: 0;
 }
 
+.music-player-bar button.active {
+    background: #0b8a56;
+    box-shadow: 0 0 0 2px #3ecf8e inset;
+}
+
 /* PANEL DESPLEGABLE DE BÚSQUEDA DE RADIO */
 .music-panel {
     max-height: 0;
