@@ -181,10 +181,8 @@ body {
 
 /* SELECTOR EMERGENTE DE EMOJIS (aparece sobre el mensaje al pulsar 😊) */
 .reaction-picker {
-    position: absolute;
-    bottom: 100%;
-    right: 0;
-    margin-bottom: 6px;
+    position: fixed;
+    margin-bottom: 0;
     background: var(--bg-preview);
     border: 1px solid #333;
     border-radius: 20px;
@@ -192,7 +190,7 @@ body {
     display: flex;
     gap: 6px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-    z-index: 20;
+    z-index: 10002;
 }
 
 .reaction-picker span {
