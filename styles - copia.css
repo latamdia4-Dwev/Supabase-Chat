@@ -1,0 +1,1248 @@
+/* 🌑 1. VARIABLES EN NEGRO TOTAL OBLIGATORIO (MODO POR DEFECTO) */
+:root {
+    --bg-body: #000000;
+    --bg-container: #0b0b0b;
+    --bg-header: #111111;
+    --text-header: #ffffff;
+    --bg-messages: #000000;
+    --bg-msg-sent: #054c4d;
+    --text-msg-sent: #ffffff;
+    --bg-msg-received: #1f1f1f;
+    --text-msg-received: #ffffff;
+    --bg-form: #111111;
+    --bg-input: #1a1a1a;
+    --text-input: #ffffff;
+    --bg-preview: #161616;
+}
+
+/* ☀️ 2. VARIABLES DEL MODO CLARO SECUNDARIO (CUANDO NO TIENE LA CLASE .dark-mode) */
+html:not(.dark-mode) {
+    --bg-body: #efeae2;
+    --bg-container: #ffffff;
+    --bg-header: #1c1c1c;
+    --text-header: #ffffff;
+    --bg-messages: #efeae2;
+    --bg-msg-sent: #d9fdd3;
+    --text-msg-sent: #111b21;
+    --bg-msg-received: #ffffff;
+    --text-msg-received: #111b21;
+    --bg-form: #f0f2f5;
+    --bg-input: #ffffff;
+    --text-input: #111b21;
+    --bg-preview: #f0f2f5;
+}
+
+/* 3. ESTRUCTURA GLOBAL Y EVITAR RECORTES (LAYOUT CONTROL) */
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: var(--bg-body);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    box-sizing: border-box;
+    transition: background 0.3s;
+}
+
+.chat-container {
+    width: 100%;
+    max-width: 450px;
+    background: var(--bg-container);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    height: 85vh;
+    overflow: hidden;
+    transition: background 0.3s;
+    position: relative;
+    border: 1px solid #222;
+}
+
+/* COMPONENTES DEL CHAT */
+.chat-header {
+    background: var(--bg-header);
+    color: var(--text-header);
+    padding: 15px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.1em;
+    border-bottom: 2px solid #3ecf8e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.3s;
+    z-index: 10;
+    flex-shrink: 0;
+    /* Evita que el header se aplaste */
+}
+
+.chat-header button {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2em;
+    cursor: pointer;
+    outline: none;
+}
+
+.chat-messages {
+    flex: 1;
+    min-height: 0;
+    /* CRÍTICO: Permite que el contenedor calcule bien el espacio y use scroll en flexbox */
+    padding: 15px;
+    overflow-y: auto;
+    background: var(--bg-messages);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* BURBUJAS DE MENSAJE */
+.message {
+    padding: 10px 26px 10px 14px;
+    border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    position: relative;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.message.sent {
+    background: var(--bg-msg-sent);
+    color: var(--text-msg-sent);
+    align-self: flex-end;
+}
+
+.message.received {
+    background: var(--bg-msg-received);
+    color: var(--text-msg-received);
+    align-self: flex-start;
+}
+
+.message img,
+.message video {
+    max-width: 100%;
+    border-radius: 6px;
+    margin-top: 6px;
+    display: block;
+    cursor: pointer;
+}
+
+.msg-time {
+    display: block;
+    font-size: 0.72em;
+    text-align: right;
+    margin-top: 4px;
+    opacity: 0.65;
+}
+
+.btn-delete {
+    position: absolute;
+    top: 2px;
+    right: 5px;
+    background: none;
+    border: none;
+    color: #ff4d4d;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 0.9em;
+    display: none;
+    z-index: 5;
+}
+
+.admin-mode .btn-delete {
+    display: block;
+}
+
+/* BOTÓN PARA ABRIR EL SELECTOR DE REACCIONES (emoji) */
+.btn-react {
+    position: absolute;
+    bottom: 2px;
+    right: 6px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.95em;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+    line-height: 1;
+    padding: 2px;
+}
+
+.message:hover .btn-react,
+.message:focus-within .btn-react {
+    opacity: 0.85;
+}
+
+/* SELECTOR EMERGENTE DE EMOJIS (aparece sobre el mensaje al pulsar 😊) */
+.reaction-picker {
+    position: fixed;
+    margin-bottom: 0;
+    background: var(--bg-preview);
+    border: 1px solid #333;
+    border-radius: 20px;
+    padding: 6px 8px;
+    display: flex;
+    gap: 6px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    z-index: 10002;
+}
+
+.reaction-picker span {
+    cursor: pointer;
+    font-size: 1.15em;
+    transition: transform 0.1s;
+    line-height: 1;
+}
+
+.reaction-picker span:hover {
+    transform: scale(1.3);
+}
+
+/* PÍLDORAS DE REACCIONES YA PUESTAS EN UN MENSAJE */
+.message-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    padding: 1px 7px;
+    font-size: 0.78em;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.6;
+}
+
+.reaction-pill:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+.reaction-pill.mine {
+    background: rgba(62, 207, 142, 0.28);
+    border-color: #3ecf8e;
+}
+
+/* COLA DE VISTA PREVIA (PASTE & FILE INPUT) */
+.preview-container {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    background: var(--bg-preview);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    overflow-x: auto;
+    flex-shrink: 0;
+    /* Evita que la barra de miniaturas rompa el layout */
+}
+
+.preview-item {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #1a1a1a;
+    flex-shrink: 0;
+    border: 1px solid #333;
+}
+
+.preview-item img,
+.preview-item video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.preview-item .file-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+}
+
+.btn-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    z-index: 3;
+}
+
+/* FORMULARIO DE ENVÍO DE TEXTO */
+.chat-form {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: var(--bg-form);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    gap: 8px;
+    flex-shrink: 0;
+    /* Mantiene la barra de entrada visible siempre abajo */
+}
+
+.file-label {
+    font-size: 1.4em;
+    cursor: pointer;
+    padding: 5px;
+    user-select: none;
+}
+
+.chat-form textarea {
+    flex: 1;
+    resize: none;
+    padding: 12px 16px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 1em;
+    line-height: 1.35;
+    outline: none;
+    min-height: 42px;
+    max-height: 140px;
+    box-sizing: border-box;
+}
+
+.chat-form button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-weight: bold;
+    cursor: pointer;
+    flex-shrink: 0;
+    outline: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#guestLoginBtn {
+    background: #f5a623;
+    font-size: 1.05em;
+}
+
+.chat-form textarea:disabled,
+.chat-form button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* VISOR MODAL (LIGHTBOX) */
+.lightbox {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.95);
+    /* Por encima del control flotante de brillo (9999) para que el botón
+       de cerrar nunca quede tapado. */
+    z-index: 10001;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+}
+
+.lightbox-content {
+    max-width: 90%;
+    max-height: 85%;
+    border-radius: 4px;
+    transition: transform 0.1s ease-out;
+    transform-origin: center center;
+    cursor: grab;
+    user-select: none;
+}
+
+.lightbox-content:active {
+    cursor: grabbing;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    color: #fff;
+    font-size: 26px;
+    font-weight: bold;
+    cursor: pointer;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid #333;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    z-index: 2;
+}
+
+/* Mientras el lightbox está abierto, el control flotante de brillo se
+   oculta por completo (ver ui.js) para que no vuelva a tapar el botón
+   de cerrar ni ningún otro control del visor. */
+.floating-dim-controls.hidden-by-lightbox {
+    display: none !important;
+}
+
+.lightbox-hint {
+    position: absolute;
+    bottom: 20px;
+    color: #888;
+    font-size: 0.8em;
+    text-align: center;
+    width: 100%;
+    pointer-events: none;
+}
+
+/* AGRUPACIÓN DE BOTONES EN EL HEADER */
+.header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+/* BARRA DE REPRODUCCIÓN PERSISTENTE (siempre visible una vez que suena algo) */
+.music-player-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: var(--bg-preview);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.music-player-bar button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.music-player-bar button.active {
+    background: #0b8a56;
+    box-shadow: 0 0 0 2px #3ecf8e inset;
+}
+
+.music-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 8px 12px;
+    background: var(--bg-preview);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    flex-shrink: 0;
+}
+
+.progress-time {
+    font-size: 0.7em;
+    opacity: 0.65;
+    color: var(--text-msg-received);
+    flex-shrink: 0;
+    min-width: 30px;
+    text-align: center;
+}
+
+#progressSlider {
+    flex: 1;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+}
+
+/* PANEL DESPLEGABLE DE BÚSQUEDA DE RADIO */
+.music-panel {
+    max-height: 0;
+    overflow: hidden;
+    background: var(--bg-preview);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: max-height 0.25s ease;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.music-panel.open {
+    max-height: 300px;
+}
+
+.music-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0 10px;
+    flex-shrink: 0;
+}
+
+.music-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--text-msg-received);
+    opacity: 0.6;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 4px;
+    font-size: 0.78em;
+    cursor: pointer;
+}
+
+.music-tab.active {
+    opacity: 1;
+    color: #3ecf8e;
+    border-bottom: 2px solid #3ecf8e;
+    font-weight: bold;
+}
+
+.music-hint {
+    font-size: 0.72em;
+    opacity: 0.55;
+    color: var(--text-msg-received);
+    text-align: center;
+    margin: 4px 0 0 0;
+    padding: 0 10px;
+}
+
+.music-search-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    flex-shrink: 0;
+}
+
+.music-search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.9em;
+    outline: none;
+}
+
+.music-search-row button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.music-upload-row {
+    display: none;
+    padding: 10px;
+    flex-shrink: 0;
+}
+
+.music-upload-label {
+    display: inline-block;
+    background: #3ecf8e;
+    color: #fff;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 0.85em;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.radio-icon.uploaded-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1em;
+}
+
+.radio-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px;
+    overflow-y: auto;
+    max-height: 190px;
+    flex-shrink: 1;
+}
+
+.radio-status {
+    text-align: center;
+    color: var(--text-msg-received);
+    opacity: 0.7;
+    font-size: 0.85em;
+    padding: 10px;
+}
+
+.load-more-bar {
+    display: none;
+    width: 100%;
+    background: rgba(62, 207, 142, 0.08);
+    color: #3ecf8e;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px;
+    font-size: 0.8em;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.load-more-bar:hover {
+    background: rgba(62, 207, 142, 0.16);
+}
+
+.load-more-bar:disabled {
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* PANEL DE EMOJIS / STICKERS / GIFS PARA COMPONER MENSAJES */
+.emoji-toggle-btn {
+    font-size: 1.3em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.media-panel {
+    max-height: 0;
+    overflow: hidden;
+    background: var(--bg-preview);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    transition: max-height 0.25s ease;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.media-panel.open {
+    max-height: 340px;
+}
+
+.media-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px 0 10px;
+    flex-shrink: 0;
+}
+
+.media-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--text-msg-received);
+    opacity: 0.6;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 4px;
+    font-size: 0.78em;
+    cursor: pointer;
+}
+
+.media-tab.active {
+    opacity: 1;
+    color: #3ecf8e;
+    border-bottom: 2px solid #3ecf8e;
+    font-weight: bold;
+}
+
+.media-search-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    flex-shrink: 0;
+}
+
+.media-search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.9em;
+    outline: none;
+}
+
+.media-search-row button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.media-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+}
+
+.media-grid .emoji-item {
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 6px;
+    line-height: 1;
+}
+
+.media-grid .emoji-item:hover,
+.media-grid .sticker-item:hover {
+    background: rgba(62, 207, 142, 0.15);
+}
+
+.media-grid .sticker-item {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.media-grid .gif-item {
+    width: 104px;
+    height: 72px;
+    object-fit: cover;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.media-status {
+    width: 100%;
+    text-align: center;
+    color: var(--text-msg-received);
+    opacity: 0.7;
+    font-size: 0.85em;
+    padding: 10px;
+}
+
+/* PANTALLA DE BLOQUEO POR CONTRASEÑA */
+/* REFUERZO DE SEGURIDAD VISUAL: mientras el chat-container tenga la clase
+   .locked, estos elementos quedan realmente ocultos (display: none), no solo
+   tapados por el overlay. Así, si alguien intenta "saltarse" el candado
+   quitando el overlay desde la consola (F12), no encuentra nada debajo:
+   el formulario, el historial y los paneles de música siguen sin mostrarse
+   hasta que .locked se quite de verdad (lo cual solo pasa tras un login
+   válido en lock.js).
+   RECUERDA: esto es una capa extra de fricción del lado del cliente, NO
+   reemplaza la seguridad real, que depende de tener Row Level Security
+   activo en Supabase. Sin RLS, los datos siguen siendo accesibles vía
+   supabaseClient directamente desde la consola, sin tocar el DOM. */
+.chat-container.locked .chat-messages,
+.chat-container.locked .chat-form,
+.chat-container.locked .preview-container,
+.chat-container.locked .music-player-bar,
+.chat-container.locked .music-panel,
+.chat-container.locked .dm-panel,
+.chat-container.locked .load-more-bar {
+    display: none !important;
+}
+
+/* BAJAR BRILLO RÁPIDO DE TODA LA PÁGINA: a diferencia del candado (que exige
+   contraseña), esto es solo un ajuste visual instantáneo con un clic, para
+   que la pantalla se vea más discreta/apagada sin dejar de ser legible
+   (como el filtro de brillo de una extensión de estilos). Se aplica un
+   filtro CSS a <html> completo (toda la página, no solo el chat). */
+html.brightness-dimmed {
+    filter: brightness(var(--dim-brightness, 0.45));
+    transition: filter 0.15s ease;
+}
+
+.floating-dim-controls {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid #333;
+    border-radius: 24px;
+    padding: 4px 10px 4px 4px;
+}
+
+.floating-dim-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 1.15em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#dimIntensitySlider {
+    width: 70px;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+}
+
+.lock-overlay {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.97);
+    z-index: 500;
+    justify-content: center;
+    align-items: center;
+    border-radius: 12px;
+}
+
+.lock-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 28px 24px;
+    width: 88%;
+    max-width: 320px;
+    box-sizing: border-box;
+}
+
+.lock-icon {
+    font-size: 2.4em;
+}
+
+.lock-title {
+    color: #fff;
+    font-weight: bold;
+    margin: 0 0 6px 0;
+}
+
+#lockForm,
+#accountForm,
+#registerForm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.lock-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 0.95em;
+    outline: none;
+    text-align: center;
+}
+
+.lock-box button {
+    width: 100%;
+    box-sizing: border-box;
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 11px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.lock-error {
+    color: #ff4d4d;
+    font-size: 0.82em;
+    margin: 0;
+    text-align: center;
+}
+
+/* Selector tipo "segmented control" (una sola píldora con fondo, no dos
+   botones sueltos) para elegir entre Invitado / Mi cuenta. */
+.lock-tabs {
+    display: flex;
+    gap: 2px;
+    width: 100%;
+    margin-bottom: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 22px;
+    padding: 3px;
+    box-sizing: border-box;
+}
+
+.lock-tab {
+    flex: 1;
+    background: transparent;
+    color: #999;
+    border: none;
+    border-radius: 18px;
+    padding: 8px 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lock-tab.active {
+    background: #3ecf8e;
+    color: #06241a;
+}
+
+.lock-switch {
+    color: #3ecf8e;
+    font-size: 0.78em;
+    cursor: pointer;
+    text-decoration: underline;
+    text-align: center;
+    margin: 2px 0 0 0;
+    width: 100%;
+}
+
+
+.radio-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.radio-item:hover {
+    background: rgba(62, 207, 142, 0.15);
+}
+
+.radio-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    object-fit: cover;
+    background: #222;
+    flex-shrink: 0;
+}
+
+.radio-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+}
+
+.radio-name {
+    font-size: 0.88em;
+    color: var(--text-msg-received);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.radio-meta {
+    font-size: 0.72em;
+    opacity: 0.6;
+    color: var(--text-msg-received);
+}
+
+.radio-play-icon {
+    color: #3ecf8e;
+    font-size: 0.9em;
+    flex-shrink: 0;
+}
+
+
+.current-track {
+    font-size: 0.82em;
+    color: var(--text-msg-received);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+.volume-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.volume-control button {
+    background: none;
+    border: none;
+    color: var(--text-msg-received);
+    font-size: 1em;
+    cursor: pointer;
+    width: auto;
+    height: auto;
+    border-radius: 0;
+    padding: 0 2px;
+}
+
+.volume-control input[type="range"] {
+    width: 70px;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+}
+
+/* PANEL DE MENSAJES PRIVADOS (1 a 1) — overlay dentro de .chat-container,
+   igual que el lock-overlay pero con menor z-index para que el candado
+   siga teniendo prioridad si el chat se bloquea mientras está abierto. */
+.dm-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-container);
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dm-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 15px;
+    background: var(--bg-header);
+    color: var(--text-header);
+    border-bottom: 2px solid #3ecf8e;
+    flex-shrink: 0;
+}
+
+.dm-back-btn,
+.dm-close-btn {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2em;
+    cursor: pointer;
+    width: 28px;
+    flex-shrink: 0;
+}
+
+.dm-title {
+    flex: 1;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-list-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.dm-search-row {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    flex-shrink: 0;
+}
+
+.dm-search-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.9em;
+    outline: none;
+}
+
+.dm-search-row button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 0 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.dm-section-label {
+    font-size: 0.75em;
+    opacity: 0.6;
+    color: var(--text-msg-received);
+    padding: 10px 10px 4px 10px;
+    margin: 0;
+}
+
+.dm-results,
+.dm-conversations {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 10px;
+}
+
+.dm-user-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.dm-user-item:hover {
+    background: rgba(62, 207, 142, 0.15);
+}
+
+.dm-user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: #3ecf8e;
+    color: #06241a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.dm-user-name {
+    flex: 1;
+    color: var(--text-msg-received);
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dm-empty {
+    text-align: center;
+    opacity: 0.6;
+    color: var(--text-msg-received);
+    font-size: 0.85em;
+    padding: 16px 10px;
+}
+
+.dm-chat-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dm-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--bg-messages);
+}
+
+.dm-form {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: var(--bg-form);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.dm-form textarea {
+    flex: 1;
+    resize: none;
+    padding: 12px 16px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 1em;
+    line-height: 1.35;
+    outline: none;
+    min-height: 42px;
+    max-height: 140px;
+    box-sizing: border-box;
+}
+
+.dm-form button {
+    background: #3ecf8e;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-weight: bold;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ANIMACIONES */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
