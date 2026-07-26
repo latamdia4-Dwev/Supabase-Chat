@@ -77,6 +77,22 @@ adminToggle.addEventListener('click', () => {
 });
 
 // LÓGICA DE DETECCIÓN DE ZOOM E INTERACTIVIDAD MODAL (LIGHTBOX)
+
+// Helpers genéricos para ocultar el control flotante de brillo mientras hay
+// un panel a pantalla completa abierto (Juegos, Mensajes Privados, Lightbox),
+// para que en móvil no tape el botón ✕ de esos paneles. Cada llamador usa su
+// propia clase (p.ej. 'hidden-by-game') para no pisarse entre sí: el control
+// solo vuelve a mostrarse cuando NINGÚN panel lo está ocultando.
+function hideDimControls(reasonClass) {
+    const dimControls = document.querySelector('.floating-dim-controls');
+    if (dimControls) dimControls.classList.add(reasonClass);
+}
+
+function showDimControls(reasonClass) {
+    const dimControls = document.querySelector('.floating-dim-controls');
+    if (dimControls) dimControls.classList.remove(reasonClass);
+}
+
 function openLightbox(url) {
     lightboxImg.src = url;
     zoomScale = 1;

@@ -37,6 +37,7 @@ function openConversationView() {
 
 function closeDmPanel() {
     if (dmPanel) dmPanel.style.display = 'none';
+    if (typeof showDimControls === 'function') showDimControls('hidden-by-dm');
     unsubscribeDmChannel();
 }
 
@@ -44,6 +45,7 @@ if (dmToggle) {
     dmToggle.addEventListener('click', () => {
         if (isGuest) { alert('Inicia sesión con tu cuenta para usar mensajes privados.'); return; }
         if (dmPanel) dmPanel.style.display = 'flex';
+        if (typeof hideDimControls === 'function') hideDimControls('hidden-by-dm');
         showDmListView();
     });
 }

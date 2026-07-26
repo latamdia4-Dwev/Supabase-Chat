@@ -406,10 +406,14 @@ body {
     z-index: 2;
 }
 
-/* Mientras el lightbox está abierto, el control flotante de brillo se
-   oculta por completo (ver ui.js) para que no vuelva a tapar el botón
-   de cerrar ni ningún otro control del visor. */
-.floating-dim-controls.hidden-by-lightbox {
+/* Mientras el lightbox, el panel de Juegos o el de Mensajes Privados están
+   abiertos, el control flotante de brillo se oculta por completo (ver
+   ui.js/games.js/dm.js) — en móvil, donde el chat ocupa casi todo el ancho
+   de pantalla, ese botón fijo en la esquina queda literalmente encima del
+   botón ✕ de esos paneles y bloquea el clic para cerrarlos. */
+.floating-dim-controls.hidden-by-lightbox,
+.floating-dim-controls.hidden-by-game,
+.floating-dim-controls.hidden-by-dm {
     display: none !important;
 }
 

@@ -1,18 +1,16 @@
 // js/music.js
-// Dos modos de búsqueda:
+// Modos de música:
 // 1) Radio en vivo, vía Radio Browser (gratis, sin API key). Docs: https://api.radio-browser.info
-// 2) Canciones (vista previa de 30s), vía iTunes Search API de Apple (gratis,
-//    sin API key, sin registro). Solo da un fragmento de 30 segundos por
-//    canción — es lo máximo que se puede reproducir de música con derechos de
-//    autor sin una licencia real (Spotify, Apple Music, etc.).
+// 2) Música compartida: canciones que cualquier usuario marcó como públicas
+//    (🌐) en "Mi música", visibles para todo el chat.
+// 3) Mi música: tus propias canciones subidas (privadas por defecto).
 
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
-const ITUNES_API = 'https://itunes.apple.com/search';
 
 let isPlaying = false;
 let isMuted = false;
 let lastVolume = 0.8;
-let currentMusicMode = 'radio'; // 'radio' o 'songs'
+let currentMusicMode = 'radio'; // 'radio' | 'shared' | 'uploads'
 
 // Lista de resultados actualmente cargados (radios o canciones) y el índice
 // que se está reproduciendo, para poder saltar con ⏮ / ⏭.
@@ -187,18 +185,20 @@ function setMusicMode(mode) {
     if (musicInput) musicInput.value = '';
 
     if (tabRadio) tabRadio.classList.toggle('active', mode === 'radio');
-    if (tabSongs) tabSongs.classList.toggle('active', mode === 'songs');
+    if (tabShared) tabShared.classList.toggle('active', mode === 'shared');
     if (tabUploads) tabUploads.classList.toggle('active', mode === 'uploads');
 
-    if (musicSearchRow) musicSearchRow.style.display = mode === 'uploads' ? 'none' : 'flex';
+    // El buscador solo tiene sentido para radio; Música compartida y Mi
+    // música muestran su lista directamente (como ya hacía "uploads").
+    if (musicSearchRow) musicSearchRow.style.display = mode === 'radio' ? 'flex' : 'none';
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
     if (mode === 'radio') {
         if (musicInput) musicInput.placeholder = 'Buscar estación de radio (ej. rock, jazz, noticias)...';
         if (musicHint) musicHint.textContent = '';
-    } else if (mode === 'songs') {
-        if (musicInput) musicInput.placeholder = 'Buscar canción o artista...';
-        if (musicHint) musicHint.textContent = 'Solo vista previa de 30 segundos por canción (límite de derechos de autor).';
+    } else if (mode === 'shared') {
+        if (musicHint) musicHint.textContent = 'Canciones que otros usuarios compartieron públicamente 🌐.';
+        loadSharedTracks();
     } else {
         if (musicHint) musicHint.textContent = 'Tus canciones son privadas por defecto. Activa 🌐 para compartirlas con el chat.';
         loadUploadedTracks();
@@ -206,7 +206,7 @@ function setMusicMode(mode) {
 }
 
 if (tabRadio) tabRadio.addEventListener('click', () => setMusicMode('radio'));
-if (tabSongs) tabSongs.addEventListener('click', () => setMusicMode('songs'));
+if (tabShared) tabShared.addEventListener('click', () => setMusicMode('shared'));
 if (tabUploads) tabUploads.addEventListener('click', () => setMusicMode('uploads'));
 
 // --- MI MÚSICA ---
@@ -236,12 +236,13 @@ async function getSignedUrl(fileName) {
 }
 
 async function loadUploadedTracks() {
-    if (!radioResults) return;
+    if (!radioResults || !currentUserId) return;
     radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando tu música...</div>';
     try {
         const { data, error } = await supabaseClient
             .from('music_tracks')
             .select('*')
+            .eq('user_id', currentUserId)
             .order('created_at', { ascending: false });
         if (error) throw error;
         if (!data || data.length === 0) {
@@ -253,6 +254,33 @@ async function loadUploadedTracks() {
     } catch (err) {
         console.error('Error al cargar música:', err);
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
+    }
+}
+
+// Música compartida: todas las canciones que CUALQUIER usuario marcó como
+// públicas (🌐), sin importar quién las subió. La RLS de music_tracks ya
+// permite ver filas con is_public = true a cualquier usuario autenticado;
+// aquí se filtra explícitamente para no traer de paso las privadas propias
+// (que si viven mezcladas se ven en la pestaña "Mi música").
+async function loadSharedTracks() {
+    if (!radioResults) return;
+    radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando música compartida...</div>';
+    try {
+        const { data, error } = await supabaseClient
+            .from('music_tracks')
+            .select('*')
+            .eq('is_public', true)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            radioResults.innerHTML = '<div class="radio-status">Todavía nadie compartió música públicamente. Sube una canción y márcala con 🌐 en "Mi música".</div>';
+            currentResultsList = [];
+            return;
+        }
+        renderUploadedTracks(data);
+    } catch (err) {
+        console.error('Error al cargar música compartida:', err);
+        radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar la música compartida.</div>';
     }
 }
 
@@ -368,9 +396,29 @@ async function playUploadedTrack(track, index = -1) {
         if (currentTrackTitle) currentTrackTitle.textContent = track.display_name || 'Reproduciendo...';
         updateMediaSessionMetadata(track.display_name, track.is_public ? '\u{1F310} Pública' : '\u{1F512} Privada', null);
         if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
-        if (musicPanel) musicPanel.classList.remove('open');
     } catch (err) {
         console.error('Error al obtener URL firmada:', err);
+
+        // El archivo ya no existe en el bucket (huérfano por el bug de nombres
+        // duplicados, o borrado manualmente desde Storage), aunque la fila en
+        // music_tracks siga ahí. En vez de dejar el error genérico repitiéndose
+        // cada vez que se toca esa canción, se ofrece limpiar la fila rota.
+        const notFound = err && err.message && /not.?found/i.test(err.message);
+        if (notFound && track.id) {
+            const wantsDelete = confirm(
+                `"${track.display_name}" ya no existe en el almacenamiento (posiblemente por un choque de nombres al subir varias a la vez). ¿Quitarla de tu lista?`
+            );
+            if (wantsDelete) {
+                try {
+                    await supabaseClient.from('music_tracks').delete().eq('id', track.id);
+                    loadUploadedTracks();
+                } catch (delErr) {
+                    console.error('Error al limpiar la fila huérfana:', delErr);
+                }
+                return;
+            }
+        }
+
         alert('No se pudo acceder al archivo: ' + err.message);
     }
 }
@@ -382,27 +430,79 @@ if (uploadMusicInput) {
         if (files.length === 0) return;
         if (!currentUserId) { alert('Debes iniciar sesión para subir música.'); return; }
         radioResults.innerHTML = '<div class="radio-status">⬆️ Subiendo...</div>';
+
+        const failed = [];
+        const skippedDuplicates = [];
+
+        // Trae de una vez los nombres que este usuario ya tiene subidos, para
+        // no repetir la misma consulta en cada archivo del lote.
+        let existingNames = new Set();
         try {
-            for (const file of files) {
-                // Prefix with user id so each user has their own folder in the bucket
-                const fileName = currentUserId + '/' + Date.now() + '_' + sanitizeFileName(file.name);
+            const { data: existing, error: existingErr } = await supabaseClient
+                .from('music_tracks')
+                .select('display_name')
+                .eq('user_id', currentUserId);
+            if (existingErr) throw existingErr;
+            existingNames = new Set(
+                (existing || []).map(t => t.display_name.trim().toLowerCase())
+            );
+        } catch (err) {
+            console.error('No se pudo verificar canciones existentes:', err);
+            // Si esto falla, se sigue igual sin bloquear la subida por completo.
+        }
+
+        for (const file of files) {
+            try {
                 const displayName = file.name.replace(/\.[^/.]+$/, '');
+                const normalizedName = displayName.trim().toLowerCase();
+
+                // Evita subir la misma canción dos veces (comparando por
+                // nombre, insensible a mayúsculas/espacios). Si ya la tienes,
+                // se salta en vez de duplicarla en la lista.
+                if (existingNames.has(normalizedName)) {
+                    skippedDuplicates.push(file.name);
+                    continue;
+                }
+
+                // Sufijo aleatorio además del timestamp: subir varios archivos
+                // muy rápido puede repetir Date.now() en el mismo milisegundo,
+                // lo que chocaba nombres de archivo en el bucket y dejaba filas
+                // en music_tracks apuntando a un archivo ya sobrescrito/borrado
+                // ("Object not found" al intentar reproducir).
+                const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                const fileName = `${currentUserId}/${uniqueSuffix}_${sanitizeFileName(file.name)}`;
+
                 const { error: upErr } = await supabaseClient.storage
-                    .from(MUSIC_UPLOADS_BUCKET).upload(fileName, file);
+                    .from(MUSIC_UPLOADS_BUCKET)
+                    .upload(fileName, file, { upsert: false });
                 if (upErr) throw upErr;
+
                 const { error: dbErr } = await supabaseClient
                     .from('music_tracks')
                     .insert([{ user_id: currentUserId, file_name: fileName, display_name: displayName, is_public: false }]);
                 if (dbErr) throw dbErr;
+
+                // Registra el nombre para detectar duplicados dentro del
+                // mismo lote (ej. seleccionaste el mismo archivo dos veces).
+                existingNames.add(normalizedName);
+            } catch (err) {
+                console.error(`Error al subir "${file.name}":`, err);
+                failed.push(file.name);
+                // No se corta el lote: sigue con el resto de los archivos.
             }
-            await loadUploadedTracks();
-        } catch (err) {
-            console.error('Error al subir música:', err);
-            alert('No se pudo subir: ' + err.message);
-            loadUploadedTracks();
-        } finally {
-            uploadMusicInput.value = '';
         }
+
+        const messages = [];
+        if (skippedDuplicates.length > 0) {
+            messages.push(`Ya tenías ${skippedDuplicates.length} de estas canciones, no se volvieron a subir:\n${skippedDuplicates.join('\n')}`);
+        }
+        if (failed.length > 0) {
+            messages.push(`No se pudieron subir ${failed.length} archivo(s):\n${failed.join('\n')}`);
+        }
+        if (messages.length > 0) alert(messages.join('\n\n'));
+
+        await loadUploadedTracks();
+        uploadMusicInput.value = '';
     });
 }
 
@@ -410,8 +510,6 @@ if (uploadMusicInput) {
 function runSearch(query) {
     if (currentMusicMode === 'radio') {
         searchRadioStations(query);
-    } else {
-        searchItunesSongs(query);
     }
 }
 
@@ -421,11 +519,28 @@ async function searchRadioStations(query) {
     radioResults.innerHTML = '<div class="radio-status">🔎 Buscando estaciones...</div>';
 
     try {
-        const url = `${RADIO_API}?name=${encodeURIComponent(query)}&limit=15&hidebroken=true&order=clickcount&reverse=true`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const stations = await res.json();
-        renderRadioResults(stations);
+        // Busca por nombre Y por género/tag a la vez (ej. "rock" encuentra
+        // tanto estaciones llamadas "Rock FM" como estaciones etiquetadas
+        // como género rock), y sube el límite por consulta de 15 a 30 para
+        // traer más resultados en total.
+        const [byNameRes, byTagRes] = await Promise.all([
+            fetch(`${RADIO_API}?name=${encodeURIComponent(query)}&limit=30&hidebroken=true&order=clickcount&reverse=true`),
+            fetch(`${RADIO_API}?tag=${encodeURIComponent(query)}&limit=30&hidebroken=true&order=clickcount&reverse=true`)
+        ]);
+
+        const byName = byNameRes.ok ? await byNameRes.json() : [];
+        const byTag = byTagRes.ok ? await byTagRes.json() : [];
+
+        // Combina ambas búsquedas sin repetir la misma estación dos veces.
+        const seen = new Set();
+        const merged = [...byName, ...byTag].filter(station => {
+            const key = station.stationuuid || station.url_resolved;
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        renderRadioResults(merged);
     } catch (err) {
         console.error('Error buscando estaciones de radio:', err);
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al buscar. Intenta de nuevo.</div>';
@@ -500,97 +615,8 @@ function playRadioStation(station, index = -1) {
     if (currentTrackTitle) currentTrackTitle.textContent = station.name || 'Reproduciendo...';
     updateMediaSessionMetadata(station.name, station.country, station.favicon);
 
-    // Mostrar la barra de reproducción persistente y cerrar el buscador
+    // Mostrar la barra de reproducción persistente (el panel se queda abierto)
     if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
-    if (musicPanel) musicPanel.classList.remove('open');
-}
-
-// --- BÚSQUEDA DE CANCIONES (vista previa 30s, iTunes Search API) ---
-async function searchItunesSongs(query) {
-    if (!radioResults) return;
-    radioResults.innerHTML = '<div class="radio-status">🔎 Buscando canciones...</div>';
-
-    try {
-        const url = `${ITUNES_API}?term=${encodeURIComponent(query)}&media=music&entity=song&limit=15`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        renderSongResults(data.results);
-    } catch (err) {
-        console.error('Error buscando canciones:', err);
-        radioResults.innerHTML = '<div class="radio-status">⚠️ Error al buscar. Intenta de nuevo.</div>';
-    }
-}
-
-function renderSongResults(songs) {
-    radioResults.innerHTML = '';
-
-    const validSongs = (songs || []).filter(s => s.previewUrl);
-
-    if (validSongs.length === 0) {
-        radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda.</div>';
-        return;
-    }
-
-    currentResultsList = validSongs;
-
-    validSongs.forEach((song, index) => {
-        const item = document.createElement('div');
-        item.className = 'radio-item';
-
-        const icon = document.createElement('img');
-        icon.className = 'radio-icon';
-        icon.src = song.artworkUrl60 || song.artworkUrl100 || '';
-        icon.alt = '';
-        icon.onerror = () => { icon.style.visibility = 'hidden'; };
-
-        const info = document.createElement('div');
-        info.className = 'radio-info';
-
-        const name = document.createElement('span');
-        name.className = 'radio-name';
-        name.textContent = song.trackName || 'Canción sin nombre';
-
-        const meta = document.createElement('span');
-        meta.className = 'radio-meta';
-        meta.textContent = [song.artistName, song.collectionName].filter(Boolean).join(' · ');
-
-        info.appendChild(name);
-        info.appendChild(meta);
-
-        const playIcon = document.createElement('span');
-        playIcon.className = 'radio-play-icon';
-        playIcon.textContent = '▶';
-
-        item.appendChild(icon);
-        item.appendChild(info);
-        item.appendChild(playIcon);
-
-        item.onclick = () => playSongPreview(song, index);
-        radioResults.appendChild(item);
-    });
-}
-
-function playSongPreview(song, index = -1) {
-    if (!audioPlayer) return;
-    if (index >= 0) currentResultIndex = index;
-    audioPlayer.src = song.previewUrl;
-    audioPlayer.play()
-        .then(() => {
-            isPlaying = true;
-            if (playPauseBtn) playPauseBtn.textContent = '⏸';
-        })
-        .catch(err => {
-            console.error('Error al reproducir la vista previa:', err);
-            if (currentTrackTitle) currentTrackTitle.textContent = 'No se pudo reproducir esta canción';
-        });
-
-    const label = [song.trackName, song.artistName].filter(Boolean).join(' — ');
-    if (currentTrackTitle) currentTrackTitle.textContent = `${label} (vista previa 30s)`;
-    updateMediaSessionMetadata(song.trackName, song.artistName, song.artworkUrl100 || song.artworkUrl60);
-
-    if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
-    if (musicPanel) musicPanel.classList.remove('open');
 }
 
 // Botón de búsqueda
@@ -639,9 +665,8 @@ function playByIndex(index) {
 
     if (currentMusicMode === 'radio') {
         playRadioStation(item, safeIndex);
-    } else if (currentMusicMode === 'songs') {
-        playSongPreview(item, safeIndex);
     } else {
+        // 'shared' y 'uploads' comparten la misma forma de track (music_tracks)
         playUploadedTrack(item, safeIndex);
     }
 }

@@ -11,27 +11,44 @@
 // Agrega o quita juegos editando el array GAMES.
 
 const GAMES = [
+    // --- Multijugador (2 jugadores, mismo dispositivo) ---
+    {
+        name: 'Tic-Tac-Toe 2J',
+        icon: '❌',
+        tag: '2 jugadores · Multijugador',
+        slug: 'tictactoe-2p',
+        url: 'https://codepen.io/freeCodeCamp/embed/KzXQgy?default-tab=result&theme-id=dark'
+    },
+    {
+        name: 'Conecta 4',
+        icon: '🔴',
+        tag: '2 jugadores · Multijugador',
+        slug: 'connect-four',
+        url: 'https://codepen.io/jslegers/embed/wyrBx?default-tab=result&theme-id=dark'
+    },
+    // --- Juegos de mesa (contra la máquina) ---
     {
         name: 'Ajedrez',
         icon: '♟️',
-        tag: 'Contra la máquina',
+        tag: 'Mesa · Contra la máquina',
         slug: 'chess',
         url: 'https://playpager.com/embed/chess/index.html'
     },
     {
         name: 'Damas',
         icon: '⚫',
-        tag: 'Contra la máquina',
+        tag: 'Mesa · Contra la máquina',
         slug: 'checkers',
         url: 'https://playpager.com/embed/checkers/index.html'
     },
     {
         name: 'Othello / Reversi',
         icon: '🔴',
-        tag: 'Contra la máquina',
+        tag: 'Mesa · Contra la máquina',
         slug: 'reversi',
         url: 'https://playpager.com/embed/reversi/index.html'
     },
+    // --- Puzzle ---
     {
         name: 'Sopa de letras',
         icon: '🔤',
@@ -39,6 +56,14 @@ const GAMES = [
         slug: 'wordpuzzle',
         url: 'https://playpager.com/embed/wordpuzzle/index.html'
     },
+    {
+        name: 'Sudoku',
+        icon: '🔢',
+        tag: 'Puzzle',
+        slug: 'sudoku',
+        url: 'https://playpager.com/embed/sudoku/index.html'
+    },
+    // --- Arcade / Cartas ---
     {
         name: 'Falling Cubes',
         icon: '🧊',
@@ -52,20 +77,6 @@ const GAMES = [
         tag: 'Cartas',
         slug: 'solitaire',
         url: 'https://playpager.com/embed/solitaire/index.html'
-    },
-    {
-        name: 'Sudoku',
-        icon: '🔢',
-        tag: 'Puzzle',
-        slug: 'sudoku',
-        url: 'https://playpager.com/embed/sudoku/index.html'
-    },
-    {
-        name: 'Archery Game',
-        icon: '🏹',
-        tag: 'Acción · CodePen',
-        slug: 'archery-game',
-        url: 'https://codepen.io/Toky/embed/ZVoaGm?default-tab=result&theme-id=dark'
     },
 ];
 
