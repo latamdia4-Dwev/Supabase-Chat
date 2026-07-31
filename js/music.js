@@ -380,22 +380,38 @@ function renderTracksGrouped(tracks) {
         titleSpan.textContent = `${isNoAlbum ? '📁 Sin álbum' : '💿 ' + albumKey} (${groupTracks.length})`;
         header.appendChild(titleSpan);
 
-        // Solo se puede compartir/ocultar el álbum completo si tienes AL
-        // MENOS una canción propia en ese grupo (no se puede tocar la
-        // visibilidad de canciones de otros usuarios).
+        // Checkbox "seleccionar todo el álbum" — solo si hay canciones propias
+        if (ownTracksInGroup.length > 0) {
+            const selectAll = document.createElement('input');
+            selectAll.type = 'checkbox';
+            selectAll.className = 'album-select-all';
+            selectAll.title = 'Seleccionar todas de este álbum';
+            selectAll.onclick = (e) => e.stopPropagation();
+            selectAll.onchange = () => {
+                ownTracksInGroup.forEach(t => {
+                    if (selectAll.checked) selectedTrackIds.add(t.id);
+                    else selectedTrackIds.delete(t.id);
+                    const cb = radioResults.querySelector(`[data-track-id="${t.id}"]`);
+                    if (cb) cb.checked = selectAll.checked;
+                });
+                updateBulkActionBar();
+            };
+            header.appendChild(selectAll);
+        }
+
+        header.appendChild(titleSpan);
+
         if (ownTracksInGroup.length > 0) {
             const allPublic = ownTracksInGroup.every(t => t.is_public);
-            const albumToggleBtn = document.createElement('button');
-            albumToggleBtn.className = 'album-toggle-btn';
-            albumToggleBtn.textContent = allPublic ? '🔒 Ocultar álbum' : '🌐 Compartir álbum';
-            albumToggleBtn.title = allPublic
-                ? 'Hacer privadas todas tus canciones de este álbum'
-                : 'Hacer públicas todas tus canciones de este álbum';
-            albumToggleBtn.onclick = (e) => {
+            const badge = document.createElement('button');
+            badge.className = `album-vis-badge ${allPublic ? 'public' : 'private'}`;
+            badge.textContent = allPublic ? '🌐 Pública' : '🔒 Privada';
+            badge.title = allPublic ? 'Hacer privado este álbum' : 'Compartir álbum públicamente';
+            badge.onclick = (e) => {
                 e.stopPropagation();
                 toggleAlbumSharing(isNoAlbum ? null : albumKey, !allPublic, ownTracksInGroup);
             };
-            header.appendChild(albumToggleBtn);
+            header.appendChild(badge);
         }
 
         radioResults.appendChild(header);
@@ -423,36 +439,102 @@ function activateMarqueeIfOverflows(nameEl) {
     });
 }
 
-// Mueve una canción propia a un álbum diferente (o a "Sin álbum" si queda vacío).
-async function editTrackAlbum(track) {
-    const currentAlbum = track.album || '';
-    // Build a list of existing album names for the prompt suggestion
-    const existing = [...new Set(
+// Friendly album picker modal — replaces the old prompt()-based editTrackAlbum.
+// trackIds: array of track UUIDs to move. currentAlbum: string | null (for highlight).
+function openAlbumPicker(trackIds, currentAlbum) {
+    // Collect all existing album names from the currently loaded list
+    const existingAlbums = [...new Set(
         (currentResultsList || []).map(t => (t.album || '').trim()).filter(Boolean)
-    )].filter(a => a !== currentAlbum);
+    )].sort((a, b) => a.localeCompare(b));
 
-    const hint = existing.length > 0
-        ? `\nÁlbumes existentes: ${existing.join(', ')}`
-        : '';
-    const newAlbum = prompt(
-        `Álbum para "${track.display_name}":\n(Deja vacío para quitar del álbum)${hint}`,
-        currentAlbum
-    );
-    if (newAlbum === null || newAlbum.trim() === currentAlbum) return;
+    const modal = document.createElement('div');
+    modal.className = 'album-picker-modal';
 
-    const albumValue = newAlbum.trim() || null;
+    const box = document.createElement('div');
+    box.className = 'album-picker-box';
+
+    const title = document.createElement('p');
+    title.className = 'album-picker-title';
+    title.textContent = trackIds.length > 1
+        ? `Mover ${trackIds.length} canciones a…`
+        : 'Mover canción a álbum';
+    box.appendChild(title);
+
+    if (trackIds.length === 1 && currentAlbum) {
+        const sub = document.createElement('p');
+        sub.className = 'album-picker-subtitle';
+        sub.textContent = `Álbum actual: ${currentAlbum}`;
+        box.appendChild(sub);
+    }
+
+    const list = document.createElement('div');
+    list.className = 'album-picker-list';
+
+    // "Sin álbum" option
+    const noAlbumOpt = document.createElement('button');
+    noAlbumOpt.className = 'album-picker-option' + (!currentAlbum ? ' current' : '');
+    noAlbumOpt.innerHTML = '<span>📁</span><span>Sin álbum</span>';
+    noAlbumOpt.onclick = () => applyAlbumMove(trackIds, null, modal);
+    list.appendChild(noAlbumOpt);
+
+    existingAlbums.forEach(name => {
+        const opt = document.createElement('button');
+        opt.className = 'album-picker-option' + (name === currentAlbum ? ' current' : '');
+        opt.innerHTML = `<span>💿</span><span>${name}</span>`;
+        opt.onclick = () => applyAlbumMove(trackIds, name, modal);
+        list.appendChild(opt);
+    });
+
+    box.appendChild(list);
+
+    // "Create new album" row
+    const newRow = document.createElement('div');
+    newRow.className = 'album-picker-new-row';
+    const newInput = document.createElement('input');
+    newInput.className = 'album-picker-new-input';
+    newInput.placeholder = 'Nuevo álbum…';
+    const newBtn = document.createElement('button');
+    newBtn.className = 'album-picker-new-btn';
+    newBtn.textContent = '+ Crear';
+    newBtn.onclick = () => {
+        const name = newInput.value.trim();
+        if (!name) return;
+        applyAlbumMove(trackIds, name, modal);
+    };
+    newInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') newBtn.click(); });
+    newRow.appendChild(newInput);
+    newRow.appendChild(newBtn);
+    box.appendChild(newRow);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'album-picker-cancel';
+    cancelBtn.textContent = 'Cancelar';
+    cancelBtn.onclick = () => modal.remove();
+    box.appendChild(cancelBtn);
+
+    modal.appendChild(box);
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+    setTimeout(() => newInput.focus(), 80);
+}
+
+async function applyAlbumMove(trackIds, albumValue, modal) {
+    modal.remove();
     try {
         const { error } = await supabaseClient
             .from('music_tracks')
             .update({ album: albumValue })
-            .eq('id', track.id);
+            .in('id', trackIds);
         if (error) throw error;
-        track.album = albumValue;
-        // Reload current tab to reflect grouping change
+        // Update in-memory objects so grouping reflects change
+        (currentResultsList || []).forEach(t => {
+            if (trackIds.includes(t.id)) t.album = albumValue;
+        });
+        selectedTrackIds.clear();
         if (currentMusicMode === 'shared') loadSharedTracks();
         else loadUploadedTracks();
     } catch (err) {
-        alert('No se pudo mover la canción: ' + err.message);
+        alert('No se pudo mover: ' + err.message);
     }
 }
 
@@ -481,20 +563,20 @@ async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
     }
 }
 
-// Dibuja una sola fila de canción (usado tanto en "Mi música" como en
-// "Música compartida", con o sin álbum).
+// Draws a single track row. Actions are hidden inside a ⋮ contextual menu
+// that appears on hover, keeping the row clean at all times.
 function renderTrackItem(track, index) {
     const isMine = track.user_id === currentUserId;
     const item = document.createElement('div');
     item.className = 'radio-item';
-    item.style.position = 'relative';
     item.dataset.trackKey = track.file_name;
 
-    // Checkbox de selección múltiple: solo en tus propias canciones
+    // ── Checkbox (own tracks only) ─────────────────────────────────────
     if (isMine) {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'track-select-checkbox';
+        checkbox.dataset.trackId = track.id; // used by album "select all"
         checkbox.checked = selectedTrackIds.has(track.id);
         checkbox.onclick = (e) => e.stopPropagation();
         checkbox.onchange = () => {
@@ -505,11 +587,14 @@ function renderTrackItem(track, index) {
         item.appendChild(checkbox);
     }
 
+    // ── Visibility icon ────────────────────────────────────────────────
     const visIcon = document.createElement('span');
     visIcon.className = 'radio-icon uploaded-icon';
-    visIcon.textContent = track.is_public ? '\u{1F310}' : '\u{1F512}';
-    visIcon.title = track.is_public ? 'Pública (visible para todos)' : 'Privada (solo tú)';
+    visIcon.textContent = track.is_public ? '🌐' : '🔒';
+    visIcon.title = track.is_public ? 'Pública' : 'Privada';
+    item.appendChild(visIcon);
 
+    // ── Name + meta ────────────────────────────────────────────────────
     const info = document.createElement('div');
     info.className = 'radio-info';
 
@@ -519,83 +604,121 @@ function renderTrackItem(track, index) {
     info.appendChild(nameEl);
 
     if (!isMine) {
-        const owner = document.createElement('span');
-        owner.className = 'radio-meta';
-        owner.textContent = '\u{1F310} compartida';
-        info.appendChild(owner);
+        const meta = document.createElement('span');
+        meta.className = 'radio-meta';
+        meta.textContent = '🌐 compartida';
+        info.appendChild(meta);
+    } else if (track.album) {
+        const meta = document.createElement('span');
+        meta.className = 'radio-meta';
+        meta.textContent = `💿 ${track.album}`;
+        info.appendChild(meta);
     }
 
-    const right = document.createElement('div');
-    right.style.cssText = 'display:flex;align-items:center;gap:6px;flex-shrink:0;';
+    item.appendChild(info);
 
-    if (isMine) {
-        const toggleBtn = document.createElement('button');
-        toggleBtn.title = track.is_public ? 'Hacer privada' : 'Hacer pública';
-        toggleBtn.textContent = track.is_public ? '\u{1F512}' : '\u{1F310}';
-        toggleBtn.style.cssText = 'background:rgba(62,207,142,0.15);border:1px solid #3ecf8e;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#3ecf8e;';
-        toggleBtn.onclick = async (e) => {
-            e.stopPropagation();
-            const newPublic = !track.is_public;
-            try {
-                const { error } = await supabaseClient
-                    .from('music_tracks').update({ is_public: newPublic }).eq('id', track.id);
-                if (error) throw error;
-                track.is_public = newPublic;
-                toggleBtn.textContent = newPublic ? '\u{1F512}' : '\u{1F310}';
-                toggleBtn.title = newPublic ? 'Hacer privada' : 'Hacer pública';
-                visIcon.textContent = newPublic ? '\u{1F310}' : '\u{1F512}';
-                visIcon.title = newPublic ? 'Pública (visible para todos)' : 'Privada (solo tú)';
-            } catch (err) {
-                alert('No se pudo cambiar la visibilidad: ' + err.message);
-            }
-        };
-        right.appendChild(toggleBtn);
-
-        // Button to move track to a different album
-        const albumBtn = document.createElement('button');
-        albumBtn.title = 'Mover a otro álbum';
-        albumBtn.textContent = '💿';
-        albumBtn.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid #555;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#ccc;';
-        albumBtn.onclick = (e) => { e.stopPropagation(); editTrackAlbum(track); };
-        right.appendChild(albumBtn);
-
-        const delBtn = document.createElement('button');
-        delBtn.title = 'Eliminar canción';
-        delBtn.textContent = '\u{1F5D1}\uFE0F';
-        delBtn.style.cssText = 'background:rgba(255,77,77,0.1);border:1px solid #ff4d4d;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#ff4d4d;';
-        delBtn.onclick = async (e) => {
-            e.stopPropagation();
-            if (!confirm('¿Eliminar "' + track.display_name + '"?')) return;
-            try {
-                await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
-                const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
-                if (error) throw error;
-                selectedTrackIds.delete(track.id);
-                item.remove();
-                const idx = currentResultsList.findIndex(t => t.id === track.id);
-                if (idx !== -1) currentResultsList.splice(idx, 1);
-                updateBulkActionBar();
-            } catch (err) {
-                alert('No se pudo eliminar: ' + err.message);
-            }
-        };
-        right.appendChild(delBtn);
-    }
-
+    // ── Play icon (always visible) ─────────────────────────────────────
     const playIcon = document.createElement('span');
     playIcon.className = 'radio-play-icon';
-    playIcon.textContent = '\u25B6';
-    right.appendChild(playIcon);
+    playIcon.textContent = '▶';
+    item.appendChild(playIcon);
 
-    item.appendChild(visIcon);
-    item.appendChild(info);
-    item.appendChild(right);
+    // ── 3-dot contextual menu (own tracks only, shows on hover via CSS) ─
+    if (isMine) {
+        const menuBtn = document.createElement('button');
+        menuBtn.className = 'track-actions-btn';
+        menuBtn.textContent = '⋮';
+        menuBtn.title = 'Opciones';
+        menuBtn.onclick = (e) => {
+            e.stopPropagation();
+            openTrackActionsMenu(menuBtn, track, item, index);
+        };
+        item.appendChild(menuBtn);
+    }
+
     item.onclick = () => playUploadedTrack(track, index);
 
-    // Activate marquee after the item is inserted into the DOM
     requestAnimationFrame(() => activateMarqueeIfOverflows(nameEl));
-
     return item;
+}
+
+// ── TRACK CONTEXTUAL MENU ──────────────────────────────────────────────────
+let _activeTrackMenu = null;
+
+function closeTrackActionsMenu() {
+    if (_activeTrackMenu) { _activeTrackMenu.remove(); _activeTrackMenu = null; }
+}
+
+document.addEventListener('click', closeTrackActionsMenu);
+
+function openTrackActionsMenu(anchor, track, itemEl, index) {
+    closeTrackActionsMenu();
+
+    const menu = document.createElement('div');
+    menu.className = 'track-actions-menu open';
+    _activeTrackMenu = menu;
+
+    const actions = [
+        {
+            icon: track.is_public ? '🔒' : '🌐',
+            label: track.is_public ? 'Hacer privada' : 'Hacer pública',
+            fn: async () => {
+                const newPublic = !track.is_public;
+                try {
+                    const { error } = await supabaseClient
+                        .from('music_tracks').update({ is_public: newPublic }).eq('id', track.id);
+                    if (error) throw error;
+                    track.is_public = newPublic;
+                    // Refresh just this item in place
+                    const fresh = renderTrackItem(track, index);
+                    itemEl.replaceWith(fresh);
+                } catch (err) { alert('Error: ' + err.message); }
+            }
+        },
+        {
+            icon: '💿',
+            label: 'Mover a álbum…',
+            fn: () => openAlbumPicker([track.id], track.album)
+        },
+        {
+            icon: '🗑️',
+            label: 'Eliminar canción',
+            danger: true,
+            fn: async () => {
+                if (!confirm(`¿Eliminar "${track.display_name}"?`)) return;
+                try {
+                    await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
+                    const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
+                    if (error) throw error;
+                    selectedTrackIds.delete(track.id);
+                    itemEl.remove();
+                    const idx = currentResultsList.findIndex(t => t.id === track.id);
+                    if (idx !== -1) currentResultsList.splice(idx, 1);
+                    updateBulkActionBar();
+                } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+            }
+        }
+    ];
+
+    actions.forEach(({ icon, label, danger, fn }) => {
+        const opt = document.createElement('button');
+        opt.className = 'track-action-item' + (danger ? ' danger' : '');
+        opt.innerHTML = `<span>${icon}</span><span>${label}</span>`;
+        opt.onclick = (e) => { e.stopPropagation(); closeTrackActionsMenu(); fn(); };
+        menu.appendChild(opt);
+    });
+
+    document.body.appendChild(menu);
+    menu.addEventListener('click', (e) => e.stopPropagation());
+
+    // Position below/above anchor
+    const rect = anchor.getBoundingClientRect();
+    const mw = 170, mh = actions.length * 40;
+    let top = rect.bottom + 4;
+    let left = rect.right - mw;
+    if (top + mh > window.innerHeight - 8) top = rect.top - mh - 4;
+    if (left < 8) left = 8;
+    menu.style.cssText += `top:${top}px;left:${left}px;min-width:${mw}px;`;
 }
 
 // --- BARRA DE ACCIÓN MASIVA (compartir/ocultar varias canciones a la vez) ---
@@ -609,17 +732,22 @@ function ensureBulkActionBar() {
     bar.className = 'bulk-share-bar';
     bar.innerHTML = `
         <span id="bulkShareCount" class="bulk-share-count"></span>
-        <button id="bulkSharePublicBtn" type="button">🌐 Compartir</button>
-        <button id="bulkSharePrivateBtn" type="button">🔒 Ocultar</button>
-        <button id="bulkShareCancelBtn" type="button">Cancelar</button>
+        <button id="bulkSharePublicBtn" type="button">🌐 Públicas</button>
+        <button id="bulkSharePrivateBtn" type="button">🔒 Privadas</button>
+        <button id="bulkMoveAlbumBtn" type="button">💿 Álbum</button>
+        <button id="bulkShareCancelBtn" type="button">✕</button>
     `;
     if (musicPanel) musicPanel.appendChild(bar);
 
     document.getElementById('bulkSharePublicBtn').addEventListener('click', () => bulkSetPublic(true));
     document.getElementById('bulkSharePrivateBtn').addEventListener('click', () => bulkSetPublic(false));
+    document.getElementById('bulkMoveAlbumBtn').addEventListener('click', () => {
+        if (selectedTrackIds.size === 0) return;
+        openAlbumPicker([...selectedTrackIds], null);
+    });
     document.getElementById('bulkShareCancelBtn').addEventListener('click', () => {
         selectedTrackIds.clear();
-        document.querySelectorAll('.track-select-checkbox').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.track-select-checkbox,.album-select-all').forEach(cb => { cb.checked = false; });
         updateBulkActionBar();
     });
 
@@ -1008,12 +1136,13 @@ window.addEventListener('resize', () => {
     if (musicPanel && musicPanel.classList.contains('open')) updateMusicPanelLayout();
 });
 
-// Cierra el panel si se hace clic en cualquier otro lugar de la página
-// (fuera del panel y fuera del botón 🎵 que lo abre), igual que ya pasa
-// con el selector de reacciones y debería pasar acá.
+// Close the panel on outside click. Works for both inline and side-panel modes
+// because we check closest() which traverses into fixed-positioned elements too.
 document.addEventListener('click', (e) => {
     if (!musicPanel || !musicPanel.classList.contains('open')) return;
     if (e.target.closest('#musicPanel') || e.target.closest('#musicToggle')) return;
+    // Also ignore clicks that triggered the track-actions-menu or album-picker
+    if (e.target.closest('.track-actions-menu') || e.target.closest('.album-picker-modal')) return;
     musicPanel.classList.remove('open');
 });
 
