@@ -501,6 +501,26 @@ body {
     max-height: 300px;
 }
 
+/* En pantallas anchas, el panel se despega del flujo normal del chat y se
+   ve como una ventana propia junto al chat-container (ver posicionamiento
+   dinámico en music.js: updateMusicPanelLayout). Mucho más alto y ancho
+   para administrar álbumes y canciones cómodamente. En móvil no hay
+   espacio al costado, así que sigue siendo el desplegable de siempre. */
+.music-panel.side-panel {
+    position: fixed;
+    max-height: none !important;
+    border: 1px solid #333;
+    border-bottom: 1px solid #333;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65);
+    z-index: 350;
+}
+
+.music-panel.side-panel .radio-results {
+    flex: 1;
+    max-height: none;
+}
+
 .music-tabs {
     display: flex;
     gap: 4px;
@@ -566,8 +586,11 @@ body {
 
 .music-upload-row {
     display: none;
+    flex-wrap: wrap;
+    gap: 8px;
     padding: 10px;
     flex-shrink: 0;
+    align-items: center;
 }
 
 .music-upload-label {
@@ -579,6 +602,18 @@ body {
     font-size: 0.85em;
     font-weight: bold;
     cursor: pointer;
+}
+
+.album-input {
+    flex: 1;
+    min-width: 140px;
+    padding: 8px 12px;
+    border-radius: 20px;
+    border: 1px solid #333;
+    background: var(--bg-input);
+    color: var(--text-input);
+    font-size: 0.82em;
+    outline: none;
 }
 
 .radio-icon.uploaded-icon {
@@ -960,6 +995,16 @@ html.brightness-dimmed {
     background: rgba(62, 207, 142, 0.15);
 }
 
+/* Fila de la canción/estación que suena AHORA MISMO */
+.radio-item.playing {
+    background: rgba(62, 207, 142, 0.22);
+    border: 1px solid #3ecf8e;
+}
+
+.radio-item.playing .radio-play-icon::before {
+    content: "🔊 ";
+}
+
 .radio-icon {
     width: 28px;
     height: 28px;
@@ -1005,6 +1050,28 @@ html.brightness-dimmed {
     text-overflow: ellipsis;
     flex: 1;
     min-width: 0;
+    position: relative;
+}
+
+.current-track #currentTrackTitleInner {
+    display: inline-block;
+}
+
+/* Cuando el título no cabe, se agrega esta clase (ver setCurrentTrackTitle en
+   music.js) y el texto se desplaza de derecha a izquierda en bucle, en vez
+   de cortarse con "...". Los títulos cortos se quedan quietos. */
+.current-track.marquee {
+    text-overflow: clip;
+}
+
+.current-track.marquee #currentTrackTitleInner {
+    padding-left: 100%;
+    animation: marqueeScroll 9s linear infinite;
+}
+
+@keyframes marqueeScroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
 }
 
 .volume-control {
@@ -1419,4 +1486,98 @@ html.brightness-dimmed {
     font-size: 1.1em;
     cursor: pointer;
     color: inherit;
+}
+
+/* ================================================================
+   ÁLBUMES / CARPETAS DE MÚSICA + SELECCIÓN MÚLTIPLE
+   ================================================================ */
+
+.album-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 4px 4px 4px;
+    margin-top: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.album-header:first-child {
+    margin-top: 0;
+}
+
+.album-header-title {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: var(--text-msg-received);
+    opacity: 0.85;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.album-toggle-btn {
+    background: rgba(62, 207, 142, 0.12);
+    border: 1px solid #3ecf8e;
+    color: #3ecf8e;
+    border-radius: 14px;
+    padding: 3px 9px;
+    font-size: 0.72em;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.album-toggle-btn:hover {
+    background: rgba(62, 207, 142, 0.25);
+}
+
+.track-select-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: #3ecf8e;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Barra flotante de acción masiva (compartir/ocultar varias a la vez) */
+.bulk-share-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: rgba(62, 207, 142, 0.1);
+    border-top: 1px solid #3ecf8e;
+    flex-shrink: 0;
+}
+
+.bulk-share-count {
+    font-size: 0.78em;
+    color: #3ecf8e;
+    font-weight: bold;
+    flex: 1;
+}
+
+.bulk-share-bar button {
+    background: #3ecf8e;
+    color: #06241a;
+    border: none;
+    border-radius: 14px;
+    padding: 6px 12px;
+    font-size: 0.78em;
+    font-weight: bold;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+#bulkSharePrivateBtn {
+    background: transparent;
+    color: #ff4d4d;
+    border: 1px solid #ff4d4d;
+}
+
+#bulkShareCancelBtn {
+    background: transparent;
+    color: #aaa;
+    border: 1px solid #444;
 }
