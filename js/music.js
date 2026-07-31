@@ -16,7 +16,7 @@ const musicPanelCloseBtn = document.getElementById('musicPanelCloseBtn');
 let isPlaying = false;
 let isMuted = false;
 let lastVolume = 0.8;
-let currentMusicMode = 'radio'; // 'radio' | 'shared' | 'uploads'
+let currentMusicMode = 'uploads'; // 'radio' | 'shared' | 'uploads'
 
 // Lista de resultados actualmente cargados (radios o canciones) y el índice
 // que se está reproduciendo, para poder saltar con ⏮ / ⏭.
@@ -1226,6 +1226,7 @@ function openMusicPanel() {
     if (!musicPanel) return;
     musicPanel.classList.add('open');
     if (chatContainer) chatContainer.classList.add('music-sidebar-open');
+    setMusicMode('uploads');
     if (typeof hideDimControls === 'function') hideDimControls('hidden-by-music');
 }
 
