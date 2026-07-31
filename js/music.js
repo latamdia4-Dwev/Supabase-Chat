@@ -10,7 +10,7 @@ const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
 // Elementos nuevos del panel (no declarados en config.js): la fila del
 // álbum (ahora separada del botón de subir, junto a la búsqueda) y el
 // botón ✕ para cerrar el panel a pantalla completa.
-const musicAlbumRow = document.getElementById('musicAlbumRow');
+
 const musicPanelCloseBtn = document.getElementById('musicPanelCloseBtn');
 
 let isPlaying = false;
@@ -249,7 +249,7 @@ function setMusicMode(mode) {
     // vivo (Radio Browser); en "Música compartida"/"Mi música" filtra por
     // nombre de canción o álbum sobre lo ya cargado.
     if (musicSearchRow) musicSearchRow.style.display = 'flex';
-    if (musicAlbumRow) musicAlbumRow.style.display = mode === 'uploads' ? 'flex' : 'none';
+
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
     const uploadHint = ensureUploadFormatHint();
@@ -374,7 +374,7 @@ async function loadUploadedTracks() {
             .eq('user_id', currentUserId)
             .order('created_at', { ascending: false });
         if (error) throw error;
-        updateAlbumSuggestions(data || []);
+
         if (!data || data.length === 0) {
             radioResults.innerHTML = '<div class="radio-status">Todavía no subiste ninguna canción. Usa el botón ⬆️ de arriba.</div>';
             currentResultsList = [];
@@ -936,7 +936,7 @@ if (uploadMusicInput) {
 
         const failed = [];
         const skippedDuplicates = [];
-        const albumValue = albumInput && albumInput.value.trim() ? albumInput.value.trim() : null;
+        const albumValue = null;
 
         // Trae de una vez los nombres que este usuario ya tiene subidos, para
         // no repetir la misma consulta en cada archivo del lote.
