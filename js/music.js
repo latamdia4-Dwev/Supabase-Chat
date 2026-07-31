@@ -480,8 +480,6 @@ function renderTracksGrouped(tracks) {
     });
 
     // Colapsar todos los álbumes por defecto la primera vez que se cargan.
-    // Solo se añaden los que el usuario no haya abierto manualmente antes
-    // (collapsedAlbums conserva lo que el usuario decidió entre recargas).
     sortedKeys.forEach(k => {
         if (!collapsedAlbums.has(k)) collapsedAlbums.add(k);
     });
@@ -934,16 +932,96 @@ async function playUploadedTrack(track, index = -1) {
 }
 
 // Upload: guarda el archivo en el bucket privado + fila en music_tracks
+// Abre un modal de álbum adaptado para la subida (igual que openAlbumPicker
+// pero resuelve una Promise con el álbum elegido en vez de mover tracks
+// existentes). Devuelve null si el usuario elige "Sin álbum" o cancela con ✕.
+// Devuelve false si pulsa "Cancelar subida" (abortar).
+function askAlbumForUpload(fileCount) {
+    return new Promise((resolve) => {
+        const existingAlbums = [...new Set(
+            (currentResultsList || []).map(t => (t.album || '').trim()).filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b));
+
+        const modal = document.createElement('div');
+        modal.className = 'album-picker-modal';
+
+        const box = document.createElement('div');
+        box.className = 'album-picker-box';
+
+        const title = document.createElement('p');
+        title.className = 'album-picker-title';
+        title.textContent = `¿A qué álbum van ${fileCount > 1 ? `estas ${fileCount} canciones` : 'esta canción'}?`;
+        box.appendChild(title);
+
+        const list = document.createElement('div');
+        list.className = 'album-picker-list';
+
+        const noAlbumOpt = document.createElement('button');
+        noAlbumOpt.className = 'album-picker-option';
+        noAlbumOpt.innerHTML = '<span>📁</span><span>Sin álbum</span>';
+        noAlbumOpt.onclick = () => { modal.remove(); resolve(null); };
+        list.appendChild(noAlbumOpt);
+
+        existingAlbums.forEach(name => {
+            const opt = document.createElement('button');
+            opt.className = 'album-picker-option';
+            opt.innerHTML = `<span>💿</span><span>${name}</span>`;
+            opt.onclick = () => { modal.remove(); resolve(name); };
+            list.appendChild(opt);
+        });
+
+        box.appendChild(list);
+
+        const newRow = document.createElement('div');
+        newRow.className = 'album-picker-new-row';
+        const newInput = document.createElement('input');
+        newInput.className = 'album-picker-new-input';
+        newInput.placeholder = 'Nuevo álbum…';
+        const newBtn = document.createElement('button');
+        newBtn.className = 'album-picker-new-btn';
+        newBtn.textContent = '+ Crear';
+        newBtn.onclick = () => {
+            const name = newInput.value.trim();
+            if (!name) return;
+            modal.remove();
+            resolve(name);
+        };
+        newInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') newBtn.click(); });
+        newRow.appendChild(newInput);
+        newRow.appendChild(newBtn);
+        box.appendChild(newRow);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'album-picker-cancel';
+        cancelBtn.textContent = 'Cancelar subida';
+        cancelBtn.onclick = () => { modal.remove(); resolve(false); };
+        box.appendChild(cancelBtn);
+
+        modal.appendChild(box);
+        document.body.appendChild(modal);
+        setTimeout(() => newInput.focus(), 80);
+    });
+}
+
 if (uploadMusicInput) {
     uploadMusicInput.addEventListener('change', async () => {
         const files = Array.from(uploadMusicInput.files || []);
         if (files.length === 0) return;
         if (!currentUserId) { alert('Debes iniciar sesión para subir música.'); return; }
+
+        // Preguntar álbum ANTES de subir
+        const albumChoice = await askAlbumForUpload(files.length);
+        if (albumChoice === false) {
+            // Usuario canceló la subida
+            uploadMusicInput.value = '';
+            return;
+        }
+        const albumValue = albumChoice || null;
+
         radioResults.innerHTML = '<div class="radio-status">⬆️ Subiendo...</div>';
 
         const failed = [];
         const skippedDuplicates = [];
-        const albumValue = null;
 
         // Trae de una vez los nombres que este usuario ya tiene subidos, para
         // no repetir la misma consulta en cada archivo del lote.
