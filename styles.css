@@ -1027,6 +1027,26 @@ html.brightness-dimmed {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+}
+
+/* Marquee on hover: slides the text left when it overflows the container */
+.radio-item:hover .radio-name,
+.radio-item.playing .radio-name {
+    text-overflow: clip;
+    animation: radioNameScroll 0s linear infinite; /* duration set via JS / override below */
+}
+
+.radio-name.marquee-active {
+    text-overflow: clip;
+    animation: radioNameScroll 8s linear infinite;
+}
+
+@keyframes radioNameScroll {
+    0%   { transform: translateX(0); }
+    30%  { transform: translateX(0); } /* pause at start */
+    70%  { transform: translateX(var(--marquee-offset, -60%)); }
+    100% { transform: translateX(var(--marquee-offset, -60%)); } /* pause at end */
 }
 
 .radio-meta {

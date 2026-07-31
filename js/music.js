@@ -409,6 +409,53 @@ function renderTracksGrouped(tracks) {
     updatePlayingHighlight();
 }
 
+// Activa el marquee en un elemento .radio-name si su texto desborda el contenedor.
+// Se llama después de insertar el item en el DOM (necesita layout calculado).
+function activateMarqueeIfOverflows(nameEl) {
+    if (!nameEl) return;
+    // Necesita estar en el DOM para medir; si no, no hace nada.
+    requestAnimationFrame(() => {
+        if (nameEl.scrollWidth > nameEl.clientWidth) {
+            const overflow = nameEl.scrollWidth - nameEl.clientWidth;
+            nameEl.style.setProperty('--marquee-offset', `-${overflow + 8}px`);
+            nameEl.classList.add('marquee-active');
+        }
+    });
+}
+
+// Mueve una canción propia a un álbum diferente (o a "Sin álbum" si queda vacío).
+async function editTrackAlbum(track) {
+    const currentAlbum = track.album || '';
+    // Build a list of existing album names for the prompt suggestion
+    const existing = [...new Set(
+        (currentResultsList || []).map(t => (t.album || '').trim()).filter(Boolean)
+    )].filter(a => a !== currentAlbum);
+
+    const hint = existing.length > 0
+        ? `\nÁlbumes existentes: ${existing.join(', ')}`
+        : '';
+    const newAlbum = prompt(
+        `Álbum para "${track.display_name}":\n(Deja vacío para quitar del álbum)${hint}`,
+        currentAlbum
+    );
+    if (newAlbum === null || newAlbum.trim() === currentAlbum) return;
+
+    const albumValue = newAlbum.trim() || null;
+    try {
+        const { error } = await supabaseClient
+            .from('music_tracks')
+            .update({ album: albumValue })
+            .eq('id', track.id);
+        if (error) throw error;
+        track.album = albumValue;
+        // Reload current tab to reflect grouping change
+        if (currentMusicMode === 'shared') loadSharedTracks();
+        else loadUploadedTracks();
+    } catch (err) {
+        alert('No se pudo mover la canción: ' + err.message);
+    }
+}
+
 // Cambia is_public para TODAS tus canciones de un álbum de un solo golpe.
 // albumName === null representa el grupo "Sin álbum" (columna album IS NULL).
 async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
@@ -504,6 +551,14 @@ function renderTrackItem(track, index) {
         };
         right.appendChild(toggleBtn);
 
+        // Button to move track to a different album
+        const albumBtn = document.createElement('button');
+        albumBtn.title = 'Mover a otro álbum';
+        albumBtn.textContent = '💿';
+        albumBtn.style.cssText = 'background:rgba(255,255,255,0.07);border:1px solid #555;border-radius:12px;padding:2px 7px;font-size:0.8em;cursor:pointer;color:#ccc;';
+        albumBtn.onclick = (e) => { e.stopPropagation(); editTrackAlbum(track); };
+        right.appendChild(albumBtn);
+
         const delBtn = document.createElement('button');
         delBtn.title = 'Eliminar canción';
         delBtn.textContent = '\u{1F5D1}\uFE0F';
@@ -536,6 +591,10 @@ function renderTrackItem(track, index) {
     item.appendChild(info);
     item.appendChild(right);
     item.onclick = () => playUploadedTrack(track, index);
+
+    // Activate marquee after the item is inserted into the DOM
+    requestAnimationFrame(() => activateMarqueeIfOverflows(nameEl));
+
     return item;
 }
 
@@ -811,6 +870,7 @@ function renderRadioResults(stations) {
 
         item.onclick = () => playRadioStation(station, index);
         radioResults.appendChild(item);
+        requestAnimationFrame(() => activateMarqueeIfOverflows(name));
     });
 
     updatePlayingHighlight();
