@@ -263,18 +263,35 @@ function setMusicMode(mode) {
 }
 
 // Aclara qué formatos acepta el input de subida y por qué podría fallar un
-// archivo (antes esto no se explicaba en ningún lado del panel).
+// archivo, pero sin ensuciar el panel: aparece como un link chiquito
+// "ℹ️ ¿Qué formatos acepta?" que despliega el detalle solo si lo tocás.
 function ensureUploadFormatHint() {
-    let hint = document.getElementById('uploadFormatHint');
-    if (hint) return hint;
+    let wrap = document.getElementById('uploadFormatHint');
+    if (wrap) return wrap;
     if (!musicUploadRow || !musicUploadRow.parentNode) return null;
-    hint = document.createElement('p');
-    hint.id = 'uploadFormatHint';
-    hint.className = 'music-hint';
-    hint.style.cssText = 'text-align:left;margin-top:-2px;';
-    hint.textContent = 'Acepta MP3, WAV, OGG, M4A/AAC y FLAC (lo que tu navegador pueda reproducir). Si un archivo no sube: ya tienes una canción con ese mismo nombre (se omite para no duplicar), el archivo pesa más de lo permitido en tu proyecto de Supabase, o no es un archivo de audio válido — revisa el mensaje de error que aparece tras subir.';
-    musicUploadRow.parentNode.insertBefore(hint, musicUploadRow.nextSibling);
-    return hint;
+
+    wrap = document.createElement('div');
+    wrap.id = 'uploadFormatHint';
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'upload-format-toggle';
+    toggle.textContent = 'ℹ️ ¿Qué formatos acepta?';
+
+    const detail = document.createElement('p');
+    detail.className = 'music-hint upload-format-detail';
+    detail.style.textAlign = 'left';
+    detail.textContent = 'Acepta MP3, WAV, OGG, M4A/AAC y FLAC (lo que tu navegador pueda reproducir). Si un archivo no sube: ya tienes una canción con ese mismo nombre (se omite para no duplicar), el archivo pesa más de lo permitido en tu proyecto de Supabase, o no es un archivo de audio válido — revisa el mensaje de error que aparece tras subir.';
+
+    toggle.addEventListener('click', () => {
+        const open = detail.classList.toggle('open');
+        toggle.classList.toggle('open', open);
+    });
+
+    wrap.appendChild(toggle);
+    wrap.appendChild(detail);
+    musicUploadRow.parentNode.insertBefore(wrap, musicUploadRow.nextSibling);
+    return wrap;
 }
 
 // --- MODO SELECCIÓN (checkboxes ocultos por defecto) ---
