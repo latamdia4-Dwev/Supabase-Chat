@@ -38,6 +38,7 @@ const sendBtn = document.getElementById('sendBtn');
 const guestLoginBtn = document.getElementById('guestLoginBtn');
 const themeToggle = document.getElementById('themeToggle');
 const adminToggle = document.getElementById('adminToggle');
+const adminResetPwBtn = document.getElementById('adminResetPwBtn');
 const hideChatBtn = document.getElementById('hideChatBtn');
 const dimToggleBtn = document.getElementById('dimToggleBtn');
 const dimIntensitySlider = document.getElementById('dimIntensitySlider');
@@ -132,6 +133,13 @@ let isAdmin = false;
 // false = inició sesión con su propia cuenta (usuario+contraseña) y puede chatear.
 let isGuest = true;
 let myUsername = null;
+
+// isAdmin (arriba en config.js original) es SOLO cosmético (contraseña local,
+// ver passwords.js) — permite ocultar mensajes del chat general, que ya era
+// semi-público. myIsRealAdmin es la marca REAL en la base de datos
+// (profiles.is_admin), verificada por RLS en el servidor; solo esta habilita
+// ver los DMs de otros usuarios y resetear contraseñas.
+let myIsRealAdmin = false;
 
 // Variables de estado para el Zoom de Imágenes
 let zoomScale = 1;

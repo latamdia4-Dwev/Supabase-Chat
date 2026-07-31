@@ -7,6 +7,11 @@
 let currentConversationId = null;
 let currentOtherUser = null; // { id, username }
 let dmChannel = null;
+// true cuando un admin real está viendo una conversación de OTRAS 2 personas
+// (ninguno de los 2 es él) — cambia cómo se pintan las burbujas (por
+// username en vez de "yo/otro") y habilita editar/ocultar ajenos.
+let adminViewingOthers = false;
+let adminViewingProfilesMap = {}; // { userId: username } de la conversación abierta como admin
 
 function showDmListView() {
     if (dmListView) dmListView.style.display = 'flex';
@@ -16,7 +21,26 @@ function showDmListView() {
     unsubscribeDmChannel();
     currentConversationId = null;
     currentOtherUser = null;
+    adminViewingOthers = false;
     loadMyConversations();
+    ensureDmAdminButton();
+}
+
+// Botón "🛠️ Todas las conversaciones" — solo aparece si isAdmin (cosmético)
+// Y myIsRealAdmin (real, verificado por RLS). Sin ambos, ni se muestra ni
+// funcionaría: la consulta de loadAllConversationsAdmin() simplemente no
+// devolvería nada por las políticas de la base de datos.
+function ensureDmAdminButton() {
+    let btn = document.getElementById('dmAdminAllBtn');
+    if (!btn) {
+        btn = document.createElement('button');
+        btn.id = 'dmAdminAllBtn';
+        btn.textContent = '🛠️ Todas las conversaciones (Admin)';
+        btn.className = 'dm-admin-all-btn';
+        btn.addEventListener('click', loadAllConversationsAdmin);
+        if (dmListView) dmListView.insertBefore(btn, dmListView.firstChild);
+    }
+    btn.style.display = (isAdmin && myIsRealAdmin) ? 'block' : 'none';
 }
 
 function openConversationView() {
@@ -24,11 +48,15 @@ function openConversationView() {
     if (dmListView) dmListView.style.display = 'none';
     if (dmChatView) dmChatView.style.display = 'flex';
     if (dmBackBtn) dmBackBtn.style.display = 'inline-block';
-    // Show "Notas personales" label for self-chat
+
     if (dmTitle) {
-        dmTitle.textContent = currentOtherUser.id === currentUserId
-            ? '📝 Notas personales'
-            : currentOtherUser.username;
+        if (adminViewingOthers) {
+            dmTitle.textContent = `🛠️ ${currentOtherUser.username}`;
+        } else {
+            dmTitle.textContent = currentOtherUser.id === currentUserId
+                ? '📝 Notas personales'
+                : currentOtherUser.username;
+        }
     }
     if (dmMessages) dmMessages.innerHTML = '';
     loadDmMessages();
@@ -144,7 +172,58 @@ async function openConversationWith(otherId, otherUsername) {
 
     currentConversationId = conversation.id;
     currentOtherUser = { id: otherId, username: otherUsername };
+    adminViewingOthers = false;
     openConversationView();
+}
+
+// Lista TODAS las conversaciones del sistema, sin importar quién participa.
+// Solo devuelve datos si tu cuenta tiene profiles.is_admin = true en la base
+// de datos — la política RLS de 'conversations' es la que realmente decide
+// esto, no esta función ni la variable isAdmin del navegador.
+async function loadAllConversationsAdmin() {
+    if (!dmConversations) return;
+    dmConversations.innerHTML = '<div class="dm-empty">Cargando todas las conversaciones...</div>';
+
+    try {
+        const { data: convos, error } = await supabaseClient
+            .from('conversations')
+            .select('id, user_a, user_b, created_at')
+            .order('created_at', { ascending: false });
+        if (error) throw error;
+
+        if (!convos || convos.length === 0) {
+            dmConversations.innerHTML = '<div class="dm-empty">No hay conversaciones (o tu cuenta no tiene is_admin=true en profiles — ver ADMIN_SETUP.sql).</div>';
+            return;
+        }
+
+        const allIds = [...new Set(convos.flatMap(c => [c.user_a, c.user_b]))];
+        const { data: profiles, error: profError } = await supabaseClient
+            .from('profiles').select('id, username').in('id', allIds);
+        if (profError) throw profError;
+
+        const profileMap = {};
+        (profiles || []).forEach(p => { profileMap[p.id] = p.username; });
+
+        dmConversations.innerHTML = '';
+        convos.forEach(c => {
+            const nameA = profileMap[c.user_a] || '¿?';
+            const nameB = profileMap[c.user_b] || '¿?';
+            const isSelfChat = c.user_a === c.user_b;
+            const label = isSelfChat ? `📝 Notas de ${nameA}` : `${nameA} ↔ ${nameB}`;
+
+            const item = buildDmUserItem('', label, () => {
+                adminViewingOthers = true;
+                adminViewingProfilesMap = { [c.user_a]: nameA, [c.user_b]: nameB };
+                currentConversationId = c.id;
+                currentOtherUser = { id: isSelfChat ? c.user_a : null, username: label };
+                openConversationView();
+            });
+            dmConversations.appendChild(item);
+        });
+    } catch (err) {
+        console.error(err);
+        dmConversations.innerHTML = '<div class="dm-empty">Error al cargar todas las conversaciones.</div>';
+    }
 }
 
 async function loadMyConversations() {
@@ -181,6 +260,7 @@ async function loadMyConversations() {
             const item = buildDmUserItem('', '📝 Notas personales', () => {
                 currentConversationId = selfConvo.id;
                 currentOtherUser = { id: currentUserId, username: myUsername };
+                adminViewingOthers = false;
                 openConversationView();
             });
             dmConversations.appendChild(item);
@@ -193,6 +273,7 @@ async function loadMyConversations() {
             const item = buildDmUserItem(otherName, otherName, () => {
                 currentConversationId = c.id;
                 currentOtherUser = { id: otherId, username: otherName };
+                adminViewingOthers = false;
                 openConversationView();
             });
             dmConversations.appendChild(item);
@@ -229,14 +310,36 @@ function injectSelfChatShortcut() {
 
 function renderDmMessage(msg) {
     if (!dmMessages) return;
-    const isMe = msg.sender_id === currentUserId;
+
+    // Si está oculto y no somos admin real viéndolo, no se muestra (igual
+    // que el chat general).
+    if (msg.hidden && !(isAdmin && myIsRealAdmin)) return;
+
+    const isMe = !adminViewingOthers && msg.sender_id === currentUserId;
     const div = document.createElement('div');
-    div.className = `message ${isMe ? 'sent' : 'received'}`;
+    div.className = `message ${isMe ? 'sent' : 'received'}` + (msg.hidden ? ' msg-deleted' : '');
+    div.dataset.msgId = msg.id;
+
+    // Viendo una conversación ajena como admin: identificar quién mandó cada
+    // mensaje por su username, ya que ninguno de los 2 es "yo".
+    if (adminViewingOthers) {
+        const nameSpan = document.createElement('span');
+        nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:#3ecf8e;margin-bottom:3px;opacity:0.9;';
+        nameSpan.textContent = adminViewingProfilesMap[msg.sender_id] || 'Usuario';
+        if (msg.hidden) {
+            const delBadge = document.createElement('span');
+            delBadge.textContent = ' 🗑️ Eliminado';
+            delBadge.style.cssText = 'color:#ff4d4d;font-weight:normal;';
+            nameSpan.appendChild(delBadge);
+        }
+        div.appendChild(nameSpan);
+    }
 
     if (msg.text) {
         const p = document.createElement('p');
         p.style.margin = '0';
         p.style.whiteSpace = 'pre-wrap';
+        if (msg.hidden) { p.style.textDecoration = 'line-through'; p.style.opacity = '0.6'; }
         p.textContent = msg.text;
         div.appendChild(p);
     }
@@ -246,13 +349,98 @@ function renderDmMessage(msg) {
         div.appendChild(img);
     }
 
+    if (msg.edited_at && msg.original_text) {
+        const editedNote = document.createElement('p');
+        editedNote.style.cssText = 'margin:2px 0 0 0;font-size:0.72em;opacity:0.65;';
+        editedNote.innerHTML = `✏️ editado · original: <span style="text-decoration:line-through;">${msg.original_text.replace(/</g, '&lt;')}</span>`;
+        div.appendChild(editedNote);
+    }
+
     const dateObj = msg.created_at ? new Date(msg.created_at) : new Date();
     const timeSpan = document.createElement('span');
     timeSpan.className = 'msg-time';
     timeSpan.textContent = `${String(dateObj.getHours()).padStart(2,'0')}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
     div.appendChild(timeSpan);
 
+    // Editar/ocultar: solo en modo super-admin (isAdmin cosmético + admin real)
+    if (isAdmin && myIsRealAdmin) {
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-edit';
+        editBtn.textContent = '✏️';
+        editBtn.title = 'Editar mensaje';
+        editBtn.onclick = () => editDmMessage(msg.id, msg.text || '');
+        div.appendChild(editBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn-delete';
+        delBtn.textContent = msg.hidden ? '↺' : '×';
+        delBtn.title = msg.hidden ? 'Restaurar mensaje' : 'Ocultar mensaje';
+        delBtn.onclick = () => toggleHideDmMessage(msg.id, !msg.hidden);
+        div.appendChild(delBtn);
+    }
+
     dmMessages.appendChild(div);
+}
+
+// Edita un mensaje privado, guardando el original la primera vez (solo admin real)
+async function editDmMessage(id, currentText) {
+    if (!(isAdmin && myIsRealAdmin)) return;
+    const newText = prompt('Editar mensaje:', currentText);
+    if (newText === null || newText === currentText) return;
+
+    try {
+        const { data: existing, error: fetchErr } = await supabaseClient
+            .from('private_messages')
+            .select('original_text, text')
+            .eq('id', id)
+            .single();
+        if (fetchErr) throw fetchErr;
+
+        const { error } = await supabaseClient
+            .from('private_messages')
+            .update({
+                text: newText,
+                edited_at: new Date().toISOString(),
+                original_text: existing.original_text || existing.text
+            })
+            .eq('id', id);
+        if (error) throw error;
+
+        rerenderDmMessage(id);
+    } catch (err) {
+        console.error(err);
+        alert('Error al editar el mensaje.');
+    }
+}
+
+// Oculta/restaura un mensaje privado (solo admin real)
+async function toggleHideDmMessage(id, hidden) {
+    if (!(isAdmin && myIsRealAdmin)) return;
+    try {
+        const { error } = await supabaseClient
+            .from('private_messages')
+            .update({ hidden })
+            .eq('id', id);
+        if (error) throw error;
+        rerenderDmMessage(id);
+    } catch (err) {
+        console.error(err);
+        alert('Error al actualizar el mensaje.');
+    }
+}
+
+// Vuelve a traer un único mensaje y lo redibuja en su lugar
+async function rerenderDmMessage(id) {
+    try {
+        const { data, error } = await supabaseClient
+            .from('private_messages').select('*').eq('id', id).single();
+        if (error) throw error;
+        const el = dmMessages ? dmMessages.querySelector(`[data-msg-id="${id}"]`) : null;
+        if (el) el.remove();
+        renderDmMessage(data);
+    } catch (err) {
+        console.error('Error al refrescar el mensaje:', err);
+    }
 }
 
 async function loadDmMessages() {

@@ -352,14 +352,16 @@ supabaseClient
 // --- RENDER MESSAGE ---
 function renderMessage(msg, prepend = false) {
     if (!messagesContainer) return;
-    if (msg.hidden) return;
+
+    const showingDeleted = isAdmin && myIsRealAdmin;
+    if (msg.hidden && !showingDeleted) return;
 
     // sender_id is ephemeral (changes each page load); also match by username
     // so messages from previous sessions appear on the right side.
     const isMe = msg.sender_id === mySessionId ||
         (!isGuest && myUsername && msg.username === myUsername);
     const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${isMe ? 'sent' : 'received'}`;
+    msgDiv.className = `message ${isMe ? 'sent' : 'received'}` + (msg.hidden ? ' msg-deleted' : '');
     msgDiv.id = `msg-${msg.id}`;
 
     // Show sender name on every message so participants know who wrote what
@@ -367,14 +369,30 @@ function renderMessage(msg, prepend = false) {
     const nameSpan = document.createElement('span');
     nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:#3ecf8e;margin-bottom:3px;opacity:0.9;';
     nameSpan.textContent = isMe ? `${displayName} (tú)` : displayName;
+    if (msg.hidden) {
+        const delBadge = document.createElement('span');
+        delBadge.textContent = ' 🗑️ Eliminado (solo visible para admin)';
+        delBadge.style.cssText = 'color:#ff4d4d;font-weight:normal;';
+        nameSpan.appendChild(delBadge);
+    }
     msgDiv.appendChild(nameSpan);
 
     if (msg.text) {
         const textPara = document.createElement('p');
         textPara.style.margin = '0';
         textPara.style.whiteSpace = 'pre-wrap';
+        if (msg.hidden) textPara.style.textDecoration = 'line-through';
+        if (msg.hidden) textPara.style.opacity = '0.6';
         textPara.textContent = msg.text;
         msgDiv.appendChild(textPara);
+    }
+
+    // Si fue editado, muestra el texto original tachado arriba del actual
+    if (msg.edited_at && msg.original_text) {
+        const editedNote = document.createElement('p');
+        editedNote.style.cssText = 'margin:2px 0 0 0;font-size:0.72em;opacity:0.65;';
+        editedNote.innerHTML = `✏️ editado · original: <span style="text-decoration:line-through;">${msg.original_text.replace(/</g, '&lt;')}</span>`;
+        msgDiv.appendChild(editedNote);
     }
 
     if (msg.image_url) {
@@ -402,8 +420,20 @@ function renderMessage(msg, prepend = false) {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-delete';
     deleteBtn.textContent = '×';
-    deleteBtn.onclick = () => deleteMessage(msg.id);
+    deleteBtn.title = msg.hidden ? 'Restaurar mensaje' : 'Ocultar mensaje';
+    deleteBtn.onclick = () => msg.hidden ? restoreMessage(msg.id) : deleteMessage(msg.id);
     msgDiv.appendChild(deleteBtn);
+
+    // Botón de editar: solo visible en modo super-admin (isAdmin cosmético +
+    // is_admin real en la base de datos)
+    if (isAdmin && myIsRealAdmin) {
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-edit';
+        editBtn.textContent = '✏️';
+        editBtn.title = 'Editar mensaje';
+        editBtn.onclick = () => editMessage(msg.id, msg.text || '');
+        msgDiv.appendChild(editBtn);
+    }
 
     const reactBtn = document.createElement('button');
     reactBtn.className = 'btn-react';
@@ -428,9 +458,11 @@ function renderMessage(msg, prepend = false) {
 async function loadInitialMessages() {
     try {
         messagesContainer.innerHTML = '';
+        const showingDeleted = isAdmin && myIsRealAdmin;
         if (INITIAL_MESSAGES_COUNT > 0) {
-            const { data, error } = await supabaseClient
-                .from('messages').select('*').eq('hidden', false)
+            let query = supabaseClient.from('messages').select('*');
+            if (!showingDeleted) query = query.eq('hidden', false);
+            const { data, error } = await query
                 .order('created_at', { ascending: false }).limit(INITIAL_MESSAGES_COUNT);
             if (error) throw error;
             if (data && data.length > 0) {
@@ -457,8 +489,10 @@ async function loadOlderMessages() {
     isLoadingOlderMessages = true;
     if (loadMoreBar) { loadMoreBar.textContent = 'Cargando...'; loadMoreBar.disabled = true; }
     try {
-        const { data, error } = await supabaseClient
-            .from('messages').select('*').eq('hidden', false)
+        const showingDeleted = isAdmin && myIsRealAdmin;
+        let query = supabaseClient.from('messages').select('*');
+        if (!showingDeleted) query = query.eq('hidden', false);
+        const { data, error } = await query
             .lt('created_at', oldestMessageTimestamp)
             .order('created_at', { ascending: false }).limit(MESSAGES_PAGE_SIZE);
         if (error) throw error;
@@ -503,9 +537,55 @@ async function deleteMessage(id) {
     try {
         const { error } = await supabaseClient.from('messages').update({ hidden: true }).eq('id', id);
         if (error) throw error;
+        if (isAdmin && myIsRealAdmin) loadInitialMessages(); // refresca para mostrarlo tachado
     } catch (error) {
         console.error(error);
         alert('Error al ocultar el mensaje.');
+    }
+}
+
+// Solo visible/usable en modo super-admin (ver btn-delete con title "Restaurar")
+async function restoreMessage(id) {
+    if (!(isAdmin && myIsRealAdmin)) return;
+    try {
+        const { error } = await supabaseClient.from('messages').update({ hidden: false }).eq('id', id);
+        if (error) throw error;
+        loadInitialMessages();
+    } catch (error) {
+        console.error(error);
+        alert('Error al restaurar el mensaje.');
+    }
+}
+
+// Edita el texto de un mensaje, guardando el original la PRIMERA vez que se
+// edita (para no perder el historial si se edita más de una vez). Solo
+// disponible en modo super-admin (isAdmin cosmético + is_admin real en BD).
+async function editMessage(id, currentText) {
+    if (!(isAdmin && myIsRealAdmin)) return;
+    const newText = prompt('Editar mensaje:', currentText);
+    if (newText === null || newText === currentText) return;
+
+    try {
+        // Trae el mensaje actual para saber si ya tenía un original_text guardado
+        const { data: existing, error: fetchErr } = await supabaseClient
+            .from('messages')
+            .select('original_text, text')
+            .eq('id', id)
+            .single();
+        if (fetchErr) throw fetchErr;
+
+        const updatePayload = {
+            text: newText,
+            edited_at: new Date().toISOString(),
+            original_text: existing.original_text || existing.text
+        };
+
+        const { error } = await supabaseClient.from('messages').update(updatePayload).eq('id', id);
+        if (error) throw error;
+        loadInitialMessages();
+    } catch (error) {
+        console.error(error);
+        alert('Error al editar el mensaje.');
     }
 }
 
@@ -536,11 +616,17 @@ supabaseClient
         pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== payload.old.id);
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, payload => {
-        if (payload.new.hidden) {
+        const showingDeleted = isAdmin && myIsRealAdmin;
+        if (payload.new.hidden && !showingDeleted) {
             const el = document.getElementById(`msg-${payload.new.id}`);
             if (el) el.remove();
             pendingMessagesWhileHidden = pendingMessagesWhileHidden.filter(m => m.id !== payload.new.id);
+            return;
         }
+        // Editado, restaurado, u ocultado-pero-admin-lo-sigue-viendo: re-dibuja
+        const el = document.getElementById(`msg-${payload.new.id}`);
+        if (el) el.remove();
+        renderMessage(payload.new);
     })
     .subscribe();
 

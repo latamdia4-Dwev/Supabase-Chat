@@ -55,6 +55,123 @@ themeToggle.addEventListener('click', () => {
 });
 
 // CONTROL DE LOGIN DE ADMINISTRADOR
+//
+// isAdmin (cosmético, contraseña en passwords.js) solo controla ocultar/
+// mostrar botones en el chat general. Las funciones SENSIBLES (ver DMs de
+// otros, resetear contraseñas) exigen ADEMÁS myIsRealAdmin === true, que
+// viene de la base de datos (profiles.is_admin) y no se puede falsificar
+// desde la consola del navegador — sin eso, las consultas simplemente no
+// devuelven datos por las políticas RLS, sin importar qué diga isAdmin.
+function applyAdminModeUI() {
+    const showSuperAdmin = isAdmin && myIsRealAdmin;
+
+    if (chatContainer) chatContainer.classList.toggle('super-admin-mode', showSuperAdmin);
+
+    if (adminResetPwBtn) adminResetPwBtn.style.display = showSuperAdmin ? 'inline-flex' : 'none';
+
+    const dmAdminBtn = document.getElementById('dmAdminAllBtn');
+    if (dmAdminBtn) dmAdminBtn.style.display = showSuperAdmin ? 'block' : 'none';
+
+    // Si el admin (cosmético) está activo pero la cuenta NO es admin real,
+    // que quede claro por qué no ve nada nuevo — solo la primera vez que
+    // activa, para no ser repetitivo.
+    if (isAdmin && !myIsRealAdmin && !window._warnedNoRealAdmin) {
+        window._warnedNoRealAdmin = true;
+        setTimeout(() => alert('Modo Administrador (visual) activado. Para ver DMs de otros usuarios o resetear contraseñas, tu cuenta necesita profiles.is_admin = true en la base de datos (ver ADMIN_SETUP.sql).'), 300);
+    }
+
+    // Recarga el chat general para traer también los mensajes ocultos
+    // cuando se activa, y para volver a ocultarlos al desactivar.
+    if (typeof loadInitialMessages === 'function') loadInitialMessages();
+}
+
+// --- MODAL: RESETEAR CONTRASEÑA DE OTRO USUARIO (solo super-admin) ---
+function buildAdminPasswordModal() {
+    if (document.getElementById('adminPasswordPanel')) return;
+
+    const modal = document.createElement('div');
+    modal.id = 'adminPasswordPanel';
+    modal.style.cssText = `
+        display:none;position:absolute;top:0;left:0;width:100%;height:100%;
+        background:rgba(0,0,0,0.97);z-index:600;justify-content:center;
+        align-items:center;border-radius:12px;
+    `;
+
+    modal.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;
+                    padding:28px 24px;width:88%;max-width:320px;box-sizing:border-box;">
+            <div style="font-size:2em;">🔑</div>
+            <p style="color:#fff;font-weight:bold;margin:0;">Resetear contraseña de usuario</p>
+            <p style="color:#aaa;font-size:0.75em;margin:0;text-align:center;">
+                No se puede ver la contraseña actual (está cifrada), pero puedes
+                asignarle una nueva.
+            </p>
+
+            <input id="adminPwUsernameInput" type="text" placeholder="Usuario objetivo"
+                style="width:100%;box-sizing:border-box;padding:11px 14px;border-radius:20px;
+                       border:1px solid #333;background:#1a1a1a;color:#fff;font-size:0.9em;
+                       outline:none;text-align:center;">
+            <input id="adminPwNewPasswordInput" type="password" placeholder="Nueva contraseña (mín. 6)"
+                style="width:100%;box-sizing:border-box;padding:11px 14px;border-radius:20px;
+                       border:1px solid #333;background:#1a1a1a;color:#fff;font-size:0.9em;
+                       outline:none;text-align:center;">
+
+            <p id="adminPwError" style="color:#f55;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
+            <p id="adminPwSuccess" style="color:#3ecf8e;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
+
+            <button id="adminPwSaveBtn"
+                style="width:100%;box-sizing:border-box;background:#3ecf8e;color:#fff;border:none;
+                       border-radius:20px;padding:11px;font-weight:bold;cursor:pointer;margin-top:4px;">
+                Resetear contraseña
+            </button>
+            <button id="adminPwCloseBtn"
+                style="width:100%;box-sizing:border-box;background:transparent;color:#aaa;border:1px solid #333;
+                       border-radius:20px;padding:11px;cursor:pointer;">
+                Cancelar
+            </button>
+        </div>
+    `;
+
+    if (chatContainer) chatContainer.appendChild(modal);
+
+    document.getElementById('adminPwCloseBtn').addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+    document.getElementById('adminPwSaveBtn').addEventListener('click', async () => {
+        const username = document.getElementById('adminPwUsernameInput').value.trim();
+        const newPassword = document.getElementById('adminPwNewPasswordInput').value;
+        const errEl = document.getElementById('adminPwError');
+        const okEl = document.getElementById('adminPwSuccess');
+        const saveBtn = document.getElementById('adminPwSaveBtn');
+
+        if (errEl) errEl.style.display = 'none';
+        if (okEl) okEl.style.display = 'none';
+
+        if (!username || !newPassword) {
+            if (errEl) { errEl.textContent = 'Completa ambos campos.'; errEl.style.display = 'block'; }
+            return;
+        }
+
+        saveBtn.disabled = true;
+        try {
+            await adminResetPassword(username, newPassword);
+            if (okEl) { okEl.textContent = `✓ Contraseña de "${username}" actualizada.`; okEl.style.display = 'block'; }
+            document.getElementById('adminPwNewPasswordInput').value = '';
+        } catch (err) {
+            if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+        } finally {
+            saveBtn.disabled = false;
+        }
+    });
+}
+
+if (adminResetPwBtn) {
+    adminResetPwBtn.addEventListener('click', () => {
+        buildAdminPasswordModal();
+        document.getElementById('adminPasswordPanel').style.display = 'flex';
+    });
+}
+
 adminToggle.addEventListener('click', () => {
     if (!isAdmin) {
         const password = prompt("Introduce la clave de Administrador:");
@@ -63,6 +180,7 @@ adminToggle.addEventListener('click', () => {
             chatContainer.classList.add('admin-mode');
             adminToggle.textContent = "🔓";
             if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
+            applyAdminModeUI();
             alert("Modo Administrador activado.");
         } else if (password !== null) {
             alert("Contraseña incorrecta.");
@@ -72,6 +190,7 @@ adminToggle.addEventListener('click', () => {
         chatContainer.classList.remove('admin-mode');
         adminToggle.textContent = "🔑";
         if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
+        applyAdminModeUI();
         alert("Modo Administrador desactivado.");
     }
 });

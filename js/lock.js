@@ -362,12 +362,63 @@ if (document.readyState === 'loading') {
 }
 
 // --- LOGIN FLOW ---
+
+// Consulta si la cuenta con la que se logueó es admin REAL (columna
+// profiles.is_admin), no confundir con la variable isAdmin cosmética del
+// botón 🔑. Esto sí está protegido por RLS: si mientes sobre quién eres,
+// esta consulta simplemente no te va a devolver is_admin=true de otro.
+async function refreshMyRealAdminStatus() {
+    myIsRealAdmin = false;
+    if (isGuest || !currentUserId) return;
+    try {
+        const { data, error } = await supabaseClient
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', currentUserId)
+            .single();
+        if (error) throw error;
+        myIsRealAdmin = !!(data && data.is_admin);
+    } catch (err) {
+        console.error('No se pudo verificar el estado de admin real:', err);
+        myIsRealAdmin = false;
+    }
+}
+
 function finishLogin() {
     hideLockScreen();
-    if (typeof refreshCurrentUserId === 'function') refreshCurrentUserId();
+    if (typeof refreshCurrentUserId === 'function') {
+        refreshCurrentUserId().then(() => {
+            refreshMyRealAdminStatus().then(() => {
+                if (typeof applyAdminModeUI === 'function') applyAdminModeUI();
+            });
+        });
+    }
     if (typeof loadInitialMessages === 'function') loadInitialMessages();
     if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
     updateProfileBadge();
+}
+
+// Llama al Edge Function admin-reset-password (ver supabase-functions-admin-reset-password/index.ts).
+// Solo funciona si tu cuenta tiene profiles.is_admin = true; el servidor
+// verifica esto de nuevo por su cuenta, así que aunque alguien manipule el
+// JS del navegador, sin ser admin real en la base de datos esto siempre falla.
+async function adminResetPassword(targetUsername, newPassword) {
+    const { data: sessionData } = await supabaseClient.auth.getSession();
+    const jwt = sessionData && sessionData.session ? sessionData.session.access_token : null;
+    if (!jwt) throw new Error('No hay sesión activa.');
+
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/admin-reset-password`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${jwt}`
+        },
+        body: JSON.stringify({ targetUsername, newPassword })
+    });
+
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || 'Error desconocido al resetear la contraseña.');
+    return result;
 }
 
 async function attemptGuestLogin() {
@@ -452,7 +503,9 @@ if (hideChatBtn) {
     hideChatBtn.addEventListener('click', async () => {
         myUsername = null;
         isGuest = true;
+        myIsRealAdmin = false;
         updateProfileBadge();
+        if (typeof applyAdminModeUI === 'function') applyAdminModeUI();
         showLockScreen();
         await supabaseClient.auth.signOut();
     });

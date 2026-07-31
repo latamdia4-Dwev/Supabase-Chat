@@ -1353,3 +1353,70 @@ html.brightness-dimmed {
     border: none;
     display: block;
 }
+
+/* ================================================================
+   MODO SUPER-ADMIN (isAdmin cosmético + is_admin real en la BD)
+   ================================================================ */
+
+/* Mensajes ocultos/eliminados, visibles solo para el super-admin */
+.message.msg-deleted {
+    border: 1px dashed #ff4d4d;
+    opacity: 0.85;
+}
+
+/* Botón de editar mensaje (junto al de ocultar/reaccionar) */
+.btn-edit {
+    position: absolute;
+    bottom: 2px;
+    right: 26px;
+    background: none;
+    border: none;
+    color: #3ecf8e;
+    cursor: pointer;
+    font-size: 0.85em;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 5;
+    line-height: 1;
+    padding: 2px;
+}
+
+.message:hover .btn-edit,
+.message:focus-within .btn-edit {
+    opacity: 0.85;
+}
+
+/* En modo super-admin siempre se ve el botón de eliminar/restaurar, sin
+   depender de .admin-mode ni del hover, para que sea obvio qué puede tocar */
+.super-admin-mode .btn-delete,
+.super-admin-mode .btn-edit {
+    display: block !important;
+}
+
+/* Botón "Todas las conversaciones" dentro del panel de Mensajes Privados */
+.dm-admin-all-btn {
+    display: none;
+    width: calc(100% - 20px);
+    margin: 10px;
+    background: rgba(255, 77, 77, 0.12);
+    color: #ff4d4d;
+    border: 1px solid #ff4d4d;
+    border-radius: 20px;
+    padding: 10px;
+    font-weight: bold;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.dm-admin-all-btn:hover {
+    background: rgba(255, 77, 77, 0.22);
+}
+
+/* Botón de reset de contraseña en el header (solo visible en super-admin) */
+#adminResetPwBtn {
+    background: none;
+    border: none;
+    font-size: 1.1em;
+    cursor: pointer;
+    color: inherit;
+}
