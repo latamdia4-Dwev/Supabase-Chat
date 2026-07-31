@@ -479,6 +479,13 @@ function renderTracksGrouped(tracks) {
         return a.localeCompare(b);
     });
 
+    // Colapsar todos los álbumes por defecto la primera vez que se cargan.
+    // Solo se añaden los que el usuario no haya abierto manualmente antes
+    // (collapsedAlbums conserva lo que el usuario decidió entre recargas).
+    sortedKeys.forEach(k => {
+        if (!collapsedAlbums.has(k)) collapsedAlbums.add(k);
+    });
+
     sortedKeys.forEach(albumKey => {
         const groupTracks = groups.get(albumKey);
         const isNoAlbum = albumKey === NO_ALBUM_KEY;
