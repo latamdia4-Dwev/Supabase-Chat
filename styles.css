@@ -1061,67 +1061,89 @@ html.brightness-dimmed {
     flex-shrink: 0;
 }
 
-/* ── TRACK ACTION MENU (3-dot contextual, shown on hover) ── */
-.track-actions-btn {
-    display: none;         /* hidden until row is hovered */
+/* ── QUICK ACTIONS (own tracks only) ──────────────────────────────────
+   Three small round buttons — visibilidad, álbum, eliminar — que aparecen
+   solo al pasar el mouse sobre la fila, igual de discretos que el ícono de
+   reaccionar en los mensajes del chat. Nada de menús desplegables. */
+.track-quick-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.radio-item:hover .track-quick-actions,
+.radio-item:focus-within .track-quick-actions {
+    opacity: 1;
+}
+
+.track-quick-btn {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.07);
+    color: #ccc;
+    font-size: 0.78em;
+    cursor: pointer;
+    display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.08);
-    border: none;
-    color: #ccc;
-    font-size: 1em;
-    cursor: pointer;
     flex-shrink: 0;
     line-height: 1;
+    transition: background 0.12s, color 0.12s;
 }
 
-.radio-item:hover .track-actions-btn {
-    display: flex;
+.track-quick-btn:hover {
+    background: rgba(62,207,142,0.22);
+    color: #3ecf8e;
 }
 
-/* Dropdown panel that appears next to the 3-dot button */
-.track-actions-menu {
-    position: fixed;
-    background: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 10px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.6);
-    z-index: 10010;
-    min-width: 160px;
-    padding: 4px 0;
-    display: none;
-}
-
-.track-actions-menu.open {
-    display: block;
-}
-
-.track-action-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 9px 14px;
-    font-size: 0.82em;
-    color: #ddd;
-    cursor: pointer;
-    transition: background 0.12s;
-    white-space: nowrap;
-}
-
-.track-action-item:hover {
-    background: rgba(62,207,142,0.15);
-    color: #fff;
-}
-
-.track-action-item.danger {
+.track-quick-btn.danger:hover {
+    background: rgba(255,77,77,0.18);
     color: #ff4d4d;
 }
 
-.track-action-item.danger:hover {
-    background: rgba(255,77,77,0.12);
+/* ── MODO SELECCIÓN ────────────────────────────────────────────────────
+   Los checkboxes (de canción individual y de "todo el álbum") están
+   ocultos por defecto — la lista se ve limpia, igual que "Música
+   compartida". Solo se muestran cuando el usuario activa el botón
+   "☑️ Seleccionar varias", inyectado justo debajo de las pestañas. */
+.track-select-checkbox,
+.album-select-all {
+    display: none;
+}
+
+.radio-results.selection-mode .track-select-checkbox,
+.radio-results.selection-mode .album-select-all {
+    display: inline-block;
+}
+
+.selection-mode-toggle {
+    display: none; /* JS lo muestra salvo en la pestaña de Radio */
+    align-self: flex-start;
+    margin: 6px 10px 0 10px;
+    background: transparent;
+    border: 1px solid #333;
+    color: #3ecf8e;
+    border-radius: 14px;
+    padding: 5px 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.selection-mode-toggle:hover {
+    background: rgba(62,207,142,0.1);
+}
+
+.selection-mode-toggle.active {
+    background: rgba(62,207,142,0.18);
+    border-color: #3ecf8e;
+    color: #fff;
 }
 
 /* ── ALBUM PICKER MODAL (friendly dropdown instead of prompt()) ── */

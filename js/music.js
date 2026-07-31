@@ -216,32 +216,73 @@ function updateMediaSessionMetadata(title, subtitle, artworkUrl) {
 }
 
 // --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
-// --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
+// Filtro de texto activo para "Música compartida" / "Mi música" (búsqueda
+// por nombre de canción o álbum, en cliente sobre lo ya cargado).
+let musicSearchFilter = '';
+
 function setMusicMode(mode) {
     currentMusicMode = mode;
     if (radioResults) radioResults.innerHTML = '';
     if (musicInput) musicInput.value = '';
+    musicSearchFilter = '';
     selectedTrackIds.clear();
     updateBulkActionBar();
+    setSelectionMode(false);
 
     if (tabRadio) tabRadio.classList.toggle('active', mode === 'radio');
     if (tabShared) tabShared.classList.toggle('active', mode === 'shared');
     if (tabUploads) tabUploads.classList.toggle('active', mode === 'uploads');
 
-    // El buscador solo tiene sentido para radio; Música compartida y Mi
-    // música muestran su lista directamente (como ya hacía "uploads").
-    if (musicSearchRow) musicSearchRow.style.display = mode === 'radio' ? 'flex' : 'none';
+    // El buscador ahora sirve en las 3 pestañas: en radio busca estaciones en
+    // vivo (Radio Browser); en "Música compartida"/"Mi música" filtra por
+    // nombre de canción o álbum sobre lo ya cargado.
+    if (musicSearchRow) musicSearchRow.style.display = 'flex';
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
     if (mode === 'radio') {
         if (musicInput) musicInput.placeholder = 'Buscar estación de radio (ej. rock, jazz, noticias)...';
         if (musicHint) musicHint.textContent = '';
     } else if (mode === 'shared') {
+        if (musicInput) musicInput.placeholder = '🔎 Buscar canción por nombre...';
         if (musicHint) musicHint.textContent = 'Canciones que otros usuarios compartieron públicamente 🌐.';
         loadSharedTracks();
     } else {
+        if (musicInput) musicInput.placeholder = '🔎 Buscar canción por nombre...';
         if (musicHint) musicHint.textContent = 'Tus canciones son privadas por defecto. Activa 🌐 para compartirlas con el chat.';
         loadUploadedTracks();
+    }
+}
+
+// --- MODO SELECCIÓN (checkboxes ocultos por defecto) ---
+// Los checkboxes de selección múltiple solo se ven cuando el usuario activa
+// este modo explícitamente con un botón; el resto del tiempo la lista se ve
+// limpia, igual que "Música compartida".
+let selectionModeOn = false;
+
+function ensureSelectionToggleBtn() {
+    let btn = document.getElementById('selectionModeBtn');
+    if (btn) return btn;
+    btn = document.createElement('button');
+    btn.id = 'selectionModeBtn';
+    btn.type = 'button';
+    btn.className = 'selection-mode-toggle';
+    btn.addEventListener('click', () => setSelectionMode(!selectionModeOn));
+    if (musicHint && musicHint.parentNode) {
+        musicHint.parentNode.insertBefore(btn, musicHint.nextSibling);
+    }
+    return btn;
+}
+
+function setSelectionMode(on) {
+    selectionModeOn = on;
+    const btn = ensureSelectionToggleBtn();
+    btn.classList.toggle('active', on);
+    btn.textContent = on ? '✕ Cancelar selección' : '☑️ Seleccionar varias';
+    btn.style.display = currentMusicMode === 'radio' ? 'none' : 'block';
+    if (radioResults) radioResults.classList.toggle('selection-mode', on);
+    if (!on) {
+        selectedTrackIds.clear();
+        updateBulkActionBar();
     }
 }
 
@@ -291,7 +332,13 @@ async function loadUploadedTracks() {
             currentResultsList = [];
             return;
         }
-        renderTracksGrouped(data);
+        const filtered = filterTracksBySearch(data);
+        if (filtered.length === 0) {
+            radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda.</div>';
+            currentResultsList = [];
+            return;
+        }
+        renderTracksGrouped(filtered);
     } catch (err) {
         console.error('Error al cargar música:', err);
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
@@ -318,11 +365,28 @@ async function loadSharedTracks() {
             currentResultsList = [];
             return;
         }
-        renderTracksGrouped(data);
+        const filtered = filterTracksBySearch(data);
+        if (filtered.length === 0) {
+            radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda.</div>';
+            currentResultsList = [];
+            return;
+        }
+        renderTracksGrouped(filtered);
     } catch (err) {
         console.error('Error al cargar música compartida:', err);
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar la música compartida.</div>';
     }
+}
+
+// Filtra un array de canciones por musicSearchFilter (nombre o álbum),
+// insensible a mayúsculas. Si no hay filtro activo, devuelve todo tal cual.
+function filterTracksBySearch(tracks) {
+    if (!musicSearchFilter) return tracks;
+    const term = musicSearchFilter;
+    return (tracks || []).filter(t =>
+        (t.display_name || '').toLowerCase().includes(term) ||
+        (t.album || '').toLowerCase().includes(term)
+    );
 }
 
 // Refresca el <datalist> de sugerencias de álbum con los nombres que ya usó
@@ -563,15 +627,19 @@ async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
     }
 }
 
-// Draws a single track row. Actions are hidden inside a ⋮ contextual menu
-// that appears on hover, keeping the row clean at all times.
+// Draws a single track row using the same clean layout as "Música
+// compartida": icon + name/meta + play, all always visible and nothing
+// else. For your own tracks, three small round action buttons (🌐/🔒, 💿,
+// 🗑️) fade in only on hover, right before the play icon — no dropdown menu.
+// The selection checkbox is hidden unless "Seleccionar varias" is active
+// (see setSelectionMode / .selection-mode on #radioResults).
 function renderTrackItem(track, index) {
     const isMine = track.user_id === currentUserId;
     const item = document.createElement('div');
     item.className = 'radio-item';
     item.dataset.trackKey = track.file_name;
 
-    // ── Checkbox (own tracks only) ─────────────────────────────────────
+    // ── Checkbox (own tracks only, hidden unless selection mode is on) ──
     if (isMine) {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
@@ -617,108 +685,72 @@ function renderTrackItem(track, index) {
 
     item.appendChild(info);
 
-    // ── Play icon (always visible) ─────────────────────────────────────
+    // ── Quick actions (own tracks only, fade in on hover via CSS) ───────
+    if (isMine) {
+        const actions = document.createElement('div');
+        actions.className = 'track-quick-actions';
+
+        const visBtn = document.createElement('button');
+        visBtn.type = 'button';
+        visBtn.className = 'track-quick-btn';
+        visBtn.title = track.is_public ? 'Hacer privada' : 'Hacer pública';
+        visBtn.textContent = track.is_public ? '🔒' : '🌐';
+        visBtn.onclick = async (e) => {
+            e.stopPropagation();
+            const newPublic = !track.is_public;
+            try {
+                const { error } = await supabaseClient
+                    .from('music_tracks').update({ is_public: newPublic }).eq('id', track.id);
+                if (error) throw error;
+                track.is_public = newPublic;
+                const fresh = renderTrackItem(track, index);
+                item.replaceWith(fresh);
+            } catch (err) { alert('Error: ' + err.message); }
+        };
+
+        const albumBtn = document.createElement('button');
+        albumBtn.type = 'button';
+        albumBtn.className = 'track-quick-btn';
+        albumBtn.title = 'Mover a álbum…';
+        albumBtn.textContent = '💿';
+        albumBtn.onclick = (e) => { e.stopPropagation(); openAlbumPicker([track.id], track.album); };
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'track-quick-btn danger';
+        delBtn.title = 'Eliminar canción';
+        delBtn.textContent = '🗑️';
+        delBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (!confirm(`¿Eliminar "${track.display_name}"?`)) return;
+            try {
+                await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
+                const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
+                if (error) throw error;
+                selectedTrackIds.delete(track.id);
+                item.remove();
+                const idx = currentResultsList.findIndex(t => t.id === track.id);
+                if (idx !== -1) currentResultsList.splice(idx, 1);
+                updateBulkActionBar();
+            } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+        };
+
+        actions.appendChild(visBtn);
+        actions.appendChild(albumBtn);
+        actions.appendChild(delBtn);
+        item.appendChild(actions);
+    }
+
+    // ── Play icon (always visible) ───────────────────────────────────────
     const playIcon = document.createElement('span');
     playIcon.className = 'radio-play-icon';
     playIcon.textContent = '▶';
     item.appendChild(playIcon);
 
-    // ── 3-dot contextual menu (own tracks only, shows on hover via CSS) ─
-    if (isMine) {
-        const menuBtn = document.createElement('button');
-        menuBtn.className = 'track-actions-btn';
-        menuBtn.textContent = '⋮';
-        menuBtn.title = 'Opciones';
-        menuBtn.onclick = (e) => {
-            e.stopPropagation();
-            openTrackActionsMenu(menuBtn, track, item, index);
-        };
-        item.appendChild(menuBtn);
-    }
-
     item.onclick = () => playUploadedTrack(track, index);
 
     requestAnimationFrame(() => activateMarqueeIfOverflows(nameEl));
     return item;
-}
-
-// ── TRACK CONTEXTUAL MENU ──────────────────────────────────────────────────
-let _activeTrackMenu = null;
-
-function closeTrackActionsMenu() {
-    if (_activeTrackMenu) { _activeTrackMenu.remove(); _activeTrackMenu = null; }
-}
-
-document.addEventListener('click', closeTrackActionsMenu);
-
-function openTrackActionsMenu(anchor, track, itemEl, index) {
-    closeTrackActionsMenu();
-
-    const menu = document.createElement('div');
-    menu.className = 'track-actions-menu open';
-    _activeTrackMenu = menu;
-
-    const actions = [
-        {
-            icon: track.is_public ? '🔒' : '🌐',
-            label: track.is_public ? 'Hacer privada' : 'Hacer pública',
-            fn: async () => {
-                const newPublic = !track.is_public;
-                try {
-                    const { error } = await supabaseClient
-                        .from('music_tracks').update({ is_public: newPublic }).eq('id', track.id);
-                    if (error) throw error;
-                    track.is_public = newPublic;
-                    // Refresh just this item in place
-                    const fresh = renderTrackItem(track, index);
-                    itemEl.replaceWith(fresh);
-                } catch (err) { alert('Error: ' + err.message); }
-            }
-        },
-        {
-            icon: '💿',
-            label: 'Mover a álbum…',
-            fn: () => openAlbumPicker([track.id], track.album)
-        },
-        {
-            icon: '🗑️',
-            label: 'Eliminar canción',
-            danger: true,
-            fn: async () => {
-                if (!confirm(`¿Eliminar "${track.display_name}"?`)) return;
-                try {
-                    await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
-                    const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
-                    if (error) throw error;
-                    selectedTrackIds.delete(track.id);
-                    itemEl.remove();
-                    const idx = currentResultsList.findIndex(t => t.id === track.id);
-                    if (idx !== -1) currentResultsList.splice(idx, 1);
-                    updateBulkActionBar();
-                } catch (err) { alert('No se pudo eliminar: ' + err.message); }
-            }
-        }
-    ];
-
-    actions.forEach(({ icon, label, danger, fn }) => {
-        const opt = document.createElement('button');
-        opt.className = 'track-action-item' + (danger ? ' danger' : '');
-        opt.innerHTML = `<span>${icon}</span><span>${label}</span>`;
-        opt.onclick = (e) => { e.stopPropagation(); closeTrackActionsMenu(); fn(); };
-        menu.appendChild(opt);
-    });
-
-    document.body.appendChild(menu);
-    menu.addEventListener('click', (e) => e.stopPropagation());
-
-    // Position below/above anchor
-    const rect = anchor.getBoundingClientRect();
-    const mw = 170, mh = actions.length * 40;
-    let top = rect.bottom + 4;
-    let left = rect.right - mw;
-    if (top + mh > window.innerHeight - 8) top = rect.top - mh - 4;
-    if (left < 8) left = 8;
-    menu.style.cssText += `top:${top}px;left:${left}px;min-width:${mw}px;`;
 }
 
 // --- BARRA DE ACCIÓN MASIVA (compartir/ocultar varias canciones a la vez) ---
@@ -912,6 +944,10 @@ if (uploadMusicInput) {
 function runSearch(query) {
     if (currentMusicMode === 'radio') {
         searchRadioStations(query);
+    } else {
+        musicSearchFilter = (query || '').trim().toLowerCase();
+        if (currentMusicMode === 'shared') loadSharedTracks();
+        else loadUploadedTracks();
     }
 }
 
@@ -1031,18 +1067,32 @@ function playRadioStation(station, index = -1) {
 if (searchMusicBtn) {
     searchMusicBtn.addEventListener('click', () => {
         const query = musicInput.value.trim();
-        if (query) runSearch(query);
+        if (currentMusicMode === 'radio') {
+            if (query) runSearch(query);
+        } else {
+            runSearch(query);
+        }
     });
 }
 
-// Enter en el campo de búsqueda
+// Enter en el campo de búsqueda; también filtra en vivo mientras se escribe
+// para "Música compartida" / "Mi música" (no hace falta apretar Enter ahí).
 if (musicInput) {
     musicInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             const query = musicInput.value.trim();
-            if (query) runSearch(query);
+            if (currentMusicMode === 'radio') {
+                if (query) runSearch(query);
+            } else {
+                runSearch(query);
+            }
         }
+    });
+
+    musicInput.addEventListener('input', () => {
+        if (currentMusicMode === 'radio') return;
+        runSearch(musicInput.value);
     });
 }
 
