@@ -984,7 +984,8 @@ html.brightness-dimmed {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 7px 8px;
+    padding: 9px 8px;
+    min-height: 22px;
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.03);
     cursor: pointer;
@@ -1708,21 +1709,47 @@ html.brightness-dimmed {
    ÁLBUMES / CARPETAS DE MÚSICA + SELECCIÓN MÚLTIPLE
    ================================================================ */
 
+/* Contenedor de un álbum completo: header + sus canciones. Colapsable. */
+.album-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.album-group:first-child {
+    margin-top: 0;
+}
+
 .album-header {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 10px 4px 5px 4px;
-    margin-top: 6px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     position: sticky;
     top: 0;
     background: var(--bg-preview);
     z-index: 2;
+    cursor: pointer;
 }
 
-.album-header:first-child {
-    margin-top: 0;
+.album-toggle-arrow {
+    font-size: 0.7em;
+    color: #3ecf8e;
+    width: 12px;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.album-tracks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.album-tracks.collapsed {
+    display: none;
 }
 
 /* Checkbox to select the whole album at once */

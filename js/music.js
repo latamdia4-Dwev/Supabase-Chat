@@ -27,6 +27,12 @@ let currentPlayingKey = null;
 // estés: "Mi música" o "Música compartida").
 let selectedTrackIds = new Set();
 
+// Álbumes actualmente colapsados (por nombre, o NO_ALBUM_KEY para "Sin
+// álbum"). Se mantiene mientras el chat sigue abierto, para que un álbum de
+// 60+ canciones no obligue a scrollear entre todos los demás cada vez que
+// se cambia de pestaña o se busca algo.
+let collapsedAlbums = new Set();
+
 // --- TÍTULO DEL REPRODUCTOR CON TEXTO CORRIDO (marquee) SI NO CABE ---
 // Solo anima cuando el texto es más largo que el espacio disponible; los
 // títulos cortos se quedan quietos.
@@ -239,6 +245,9 @@ function setMusicMode(mode) {
     if (musicSearchRow) musicSearchRow.style.display = 'flex';
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
+    const uploadHint = ensureUploadFormatHint();
+    if (uploadHint) uploadHint.style.display = mode === 'uploads' ? 'block' : 'none';
+
     if (mode === 'radio') {
         if (musicInput) musicInput.placeholder = 'Buscar estación de radio (ej. rock, jazz, noticias)...';
         if (musicHint) musicHint.textContent = '';
@@ -251,6 +260,21 @@ function setMusicMode(mode) {
         if (musicHint) musicHint.textContent = 'Tus canciones son privadas por defecto. Activa 🌐 para compartirlas con el chat.';
         loadUploadedTracks();
     }
+}
+
+// Aclara qué formatos acepta el input de subida y por qué podría fallar un
+// archivo (antes esto no se explicaba en ningún lado del panel).
+function ensureUploadFormatHint() {
+    let hint = document.getElementById('uploadFormatHint');
+    if (hint) return hint;
+    if (!musicUploadRow || !musicUploadRow.parentNode) return null;
+    hint = document.createElement('p');
+    hint.id = 'uploadFormatHint';
+    hint.className = 'music-hint';
+    hint.style.cssText = 'text-align:left;margin-top:-2px;';
+    hint.textContent = 'Acepta MP3, WAV, OGG, M4A/AAC y FLAC (lo que tu navegador pueda reproducir). Si un archivo no sube: ya tienes una canción con ese mismo nombre (se omite para no duplicar), el archivo pesa más de lo permitido en tu proyecto de Supabase, o no es un archivo de audio válido — revisa el mensaje de error que aparece tras subir.';
+    musicUploadRow.parentNode.insertBefore(hint, musicUploadRow.nextSibling);
+    return hint;
 }
 
 // --- MODO SELECCIÓN (checkboxes ocultos por defecto) ---
@@ -435,9 +459,21 @@ function renderTracksGrouped(tracks) {
         const groupTracks = groups.get(albumKey);
         const isNoAlbum = albumKey === NO_ALBUM_KEY;
         const ownTracksInGroup = groupTracks.filter(t => t.user_id === currentUserId);
+        const isCollapsed = collapsedAlbums.has(albumKey);
+
+        // Cada álbum vive en su propio contenedor: header (sticky) + lista
+        // de canciones que se puede colapsar. Así un álbum con 60+ canciones
+        // no se siente como un solo bloque gigante pegado al siguiente.
+        const groupWrap = document.createElement('div');
+        groupWrap.className = 'album-group';
 
         const header = document.createElement('div');
         header.className = 'album-header';
+
+        const arrow = document.createElement('span');
+        arrow.className = 'album-toggle-arrow';
+        arrow.textContent = isCollapsed ? '▸' : '▾';
+        header.appendChild(arrow);
 
         const titleSpan = document.createElement('span');
         titleSpan.className = 'album-header-title';
@@ -463,8 +499,6 @@ function renderTracksGrouped(tracks) {
             header.appendChild(selectAll);
         }
 
-        header.appendChild(titleSpan);
-
         if (ownTracksInGroup.length > 0) {
             const allPublic = ownTracksInGroup.every(t => t.is_public);
             const badge = document.createElement('button');
@@ -478,12 +512,24 @@ function renderTracksGrouped(tracks) {
             header.appendChild(badge);
         }
 
-        radioResults.appendChild(header);
+        const tracksWrap = document.createElement('div');
+        tracksWrap.className = 'album-tracks' + (isCollapsed ? ' collapsed' : '');
+
+        header.addEventListener('click', () => {
+            const collapsed = tracksWrap.classList.toggle('collapsed');
+            if (collapsed) collapsedAlbums.add(albumKey);
+            else collapsedAlbums.delete(albumKey);
+            arrow.textContent = collapsed ? '▸' : '▾';
+        });
 
         groupTracks.forEach((track) => {
             const globalIndex = currentResultsList.indexOf(track);
-            radioResults.appendChild(renderTrackItem(track, globalIndex));
+            tracksWrap.appendChild(renderTrackItem(track, globalIndex));
         });
+
+        groupWrap.appendChild(header);
+        groupWrap.appendChild(tracksWrap);
+        radioResults.appendChild(groupWrap);
     });
 
     updatePlayingHighlight();
@@ -921,7 +967,8 @@ if (uploadMusicInput) {
                 existingNames.add(normalizedName);
             } catch (err) {
                 console.error(`Error al subir "${file.name}":`, err);
-                failed.push(file.name);
+                const reason = (err && err.message) ? err.message : 'error desconocido';
+                failed.push(`${file.name} — ${reason}`);
                 // No se corta el lote: sigue con el resto de los archivos.
             }
         }
@@ -1144,10 +1191,33 @@ if (prevTrackBtn) {
 }
 
 // Abrir / cerrar panel de radio
+//
+// BUG CORREGIDO: en pantallas anchas el panel pasa a "side-panel" (ventana
+// fija junto al chat) con "max-height: none !important" en CSS, que anula
+// por completo el max-height:0 que usa .music-panel (sin .open) para
+// colapsarse. Por eso el botón 🎵 dejaba de "ocultar" el panel una vez que
+// se había abierto en modo ancho: la clase .open se quitaba bien, pero
+// .side-panel seguía forzando que se viera igual de alto. Ahora cerrar
+// también quita .side-panel y los estilos inline de posición/tamaño.
+function openMusicPanel() {
+    if (!musicPanel) return;
+    musicPanel.classList.add('open');
+    updateMusicPanelLayout();
+}
+
+function closeMusicPanel() {
+    if (!musicPanel) return;
+    musicPanel.classList.remove('open', 'side-panel');
+    musicPanel.style.top = '';
+    musicPanel.style.left = '';
+    musicPanel.style.height = '';
+    musicPanel.style.width = '';
+}
+
 if (musicToggle && musicPanel) {
     musicToggle.addEventListener('click', () => {
-        musicPanel.classList.toggle('open');
-        if (musicPanel.classList.contains('open')) updateMusicPanelLayout();
+        if (musicPanel.classList.contains('open')) closeMusicPanel();
+        else openMusicPanel();
     });
 }
 
@@ -1192,8 +1262,8 @@ document.addEventListener('click', (e) => {
     if (!musicPanel || !musicPanel.classList.contains('open')) return;
     if (e.target.closest('#musicPanel') || e.target.closest('#musicToggle')) return;
     // Also ignore clicks that triggered the track-actions-menu or album-picker
-    if (e.target.closest('.track-actions-menu') || e.target.closest('.album-picker-modal')) return;
-    musicPanel.classList.remove('open');
+    if (e.target.closest('.track-quick-actions') || e.target.closest('.album-picker-modal')) return;
+    closeMusicPanel();
 });
 
 // --- CONTROL DE VOLUMEN ---
