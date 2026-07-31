@@ -413,7 +413,8 @@ body {
    botón ✕ de esos paneles y bloquea el clic para cerrarlos. */
 .floating-dim-controls.hidden-by-lightbox,
 .floating-dim-controls.hidden-by-game,
-.floating-dim-controls.hidden-by-dm {
+.floating-dim-controls.hidden-by-dm,
+.floating-dim-controls.hidden-by-music {
     display: none !important;
 }
 
@@ -485,40 +486,88 @@ body {
     cursor: pointer;
 }
 
-/* PANEL DESPLEGABLE DE BÚSQUEDA DE RADIO */
+/* PANEL DE MÚSICA — vista a pantalla completa dentro del chat, igual que el
+   panel de Juegos o de Mensajes Privados: reemplaza los mensajes mientras
+   está abierto, en vez de ser una ventanita flotante aparte o un
+   desplegable que empuja el contenido. Solo se cierra manualmente (🎵 o ✕). */
 .music-panel {
-    max-height: 0;
-    overflow: hidden;
-    background: var(--bg-preview);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    transition: max-height 0.25s ease;
-    flex-shrink: 0;
-    display: flex;
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-container);
+    z-index: 420;
     flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .music-panel.open {
-    max-height: 300px;
+    display: flex;
 }
 
-/* En pantallas anchas, el panel se despega del flujo normal del chat y se
-   ve como una ventana propia junto al chat-container (ver posicionamiento
-   dinámico en music.js: updateMusicPanelLayout). Mucho más alto y ancho
-   para administrar álbumes y canciones cómodamente. En móvil no hay
-   espacio al costado, así que sigue siendo el desplegable de siempre. */
-.music-panel.side-panel {
-    position: fixed;
-    max-height: none !important;
-    border: 1px solid #333;
-    border-bottom: 1px solid #333;
-    border-radius: 12px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.65);
-    z-index: 350;
+/* ── PANTALLA ANCHA: panel lateral junto al chat ─────────────────────────────
+   Solo se activa cuando hay al menos 430px libres a la derecha del chat
+   (chat max-width 450px + gap 12px + panel 420px + padding body 40px ≈ 922px).
+   En esos casos el panel sale del flujo del chat-container y flota como
+   sidebar al costado derecho, sin tapar los mensajes. ──────────────────────── */
+@media (min-width: 960px) {
+    /* Necesitamos que el panel pueda salir del chat-container sin ser
+       recortado. chat-container tiene overflow:hidden globalmente para que
+       los paneles internos (lock, game, dm…) no desborden. Solo relajamos
+       ese clip cuando el music-panel está abierto añadiendo una clase desde
+       JS (ver music.js openMusicPanel / closeMusicPanel). */
+    .chat-container.music-sidebar-open {
+        overflow: visible;
+        /* El clip del contenido interno (mensajes, form, etc.) lo mantiene
+           su propio scroll / height, no necesitamos overflow:hidden aquí. */
+    }
+
+    /* En pantalla ancha el panel sale a la derecha en vez de tapar el chat */
+    .chat-container.music-sidebar-open .music-panel,
+    .chat-container.music-sidebar-open .music-panel.open {
+        display: none; /* reset, lo re-mostramos abajo */
+    }
+
+    .chat-container.music-sidebar-open .music-panel.open {
+        display: flex;
+        position: absolute;
+        top: 0;
+        left: calc(100% + 12px);
+        width: 420px;
+        height: 100%;
+        border-radius: 12px;
+        border: 1px solid #222;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.7);
+        z-index: 420;
+        overflow: hidden;
+    }
 }
 
-.music-panel.side-panel .radio-results {
-    flex: 1;
-    max-height: none;
+.music-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 15px;
+    background: var(--bg-header);
+    color: var(--text-header);
+    border-bottom: 2px solid #3ecf8e;
+    flex-shrink: 0;
+}
+
+.music-panel-title {
+    font-weight: bold;
+    font-size: 1em;
+}
+
+.music-panel-header button {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2em;
+    cursor: pointer;
 }
 
 .music-tabs {
@@ -635,6 +684,15 @@ body {
     align-items: center;
 }
 
+/* Fila del álbum/carpeta: vive junto a la búsqueda (arriba del botón de
+   subir), en vez de compartir línea con él como antes. */
+.music-album-row {
+    display: none;
+    gap: 8px;
+    padding: 0 10px 10px 10px;
+    flex-shrink: 0;
+}
+
 .music-upload-label {
     display: inline-block;
     background: #3ecf8e;
@@ -669,10 +727,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 0 10px;
+    padding: 8px 10px 12px 10px;
     overflow-y: auto;
-    max-height: 190px;
-    flex-shrink: 1;
+    flex: 1;
+    min-height: 0;
 }
 
 .radio-status {

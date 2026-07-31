@@ -51,8 +51,15 @@
             <span class="progress-time" id="progressDuration">0:00</span>
         </div>
 
-        <!-- PANEL DESPLEGABLE DE BÚSQUEDA (se cierra automáticamente al elegir una estación/canción) -->
+        <!-- PANEL DE MÚSICA: ahora es una vista a pantalla completa dentro
+             del chat (igual que Juegos/Mensajes Privados), no una ventana
+             flotante aparte. Solo se cierra manualmente: con el botón 🎵 del
+             header o con la ✕ de aquí abajo — nunca solo al hacer clic afuera. -->
         <div class="music-panel" id="musicPanel">
+            <div class="music-panel-header">
+                <span class="music-panel-title">🎵 Radio / Música</span>
+                <button id="musicPanelCloseBtn" title="Cerrar">✕</button>
+            </div>
             <div class="music-tabs">
                 <button class="music-tab active" id="tabRadio" data-mode="radio">📻 Radio en vivo</button>
                 <button class="music-tab" id="tabShared" data-mode="shared">🌐 Música compartida</button>
@@ -62,11 +69,13 @@
                 <input type="text" id="musicInput" placeholder="Buscar estación de radio (ej. rock, jazz, noticias)...">
                 <button id="searchMusicBtn">Buscar</button>
             </div>
+            <div class="music-album-row" id="musicAlbumRow">
+                <input type="text" id="albumInput" class="album-input" list="albumSuggestions" placeholder="Álbum/carpeta">
+                <datalist id="albumSuggestions"></datalist>
+            </div>
             <div class="music-upload-row" id="musicUploadRow">
                 <label for="uploadMusicInput" class="music-upload-label">⬆️ Subir canción (mp3, wav, ogg...)</label>
                 <input type="file" id="uploadMusicInput" accept="audio/*" multiple style="display: none;">
-                <input type="text" id="albumInput" class="album-input" list="albumSuggestions" placeholder="Álbum/carpeta (opcional)">
-                <datalist id="albumSuggestions"></datalist>
             </div>
             <p class="music-hint" id="musicHint"></p>
             <div class="radio-results" id="radioResults"></div>

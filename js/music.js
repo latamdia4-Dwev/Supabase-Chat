@@ -7,6 +7,12 @@
 
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
 
+// Elementos nuevos del panel (no declarados en config.js): la fila del
+// álbum (ahora separada del botón de subir, junto a la búsqueda) y el
+// botón ✕ para cerrar el panel a pantalla completa.
+const musicAlbumRow = document.getElementById('musicAlbumRow');
+const musicPanelCloseBtn = document.getElementById('musicPanelCloseBtn');
+
 let isPlaying = false;
 let isMuted = false;
 let lastVolume = 0.8;
@@ -243,6 +249,7 @@ function setMusicMode(mode) {
     // vivo (Radio Browser); en "Música compartida"/"Mi música" filtra por
     // nombre de canción o álbum sobre lo ya cargado.
     if (musicSearchRow) musicSearchRow.style.display = 'flex';
+    if (musicAlbumRow) musicAlbumRow.style.display = mode === 'uploads' ? 'flex' : 'none';
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
 
     const uploadHint = ensureUploadFormatHint();
@@ -1209,26 +1216,24 @@ if (prevTrackBtn) {
 
 // Abrir / cerrar panel de radio
 //
-// BUG CORREGIDO: en pantallas anchas el panel pasa a "side-panel" (ventana
-// fija junto al chat) con "max-height: none !important" en CSS, que anula
-// por completo el max-height:0 que usa .music-panel (sin .open) para
-// colapsarse. Por eso el botón 🎵 dejaba de "ocultar" el panel una vez que
-// se había abierto en modo ancho: la clase .open se quitaba bien, pero
-// .side-panel seguía forzando que se viera igual de alto. Ahora cerrar
-// también quita .side-panel y los estilos inline de posición/tamaño.
+// El panel ya NO es una ventana flotante aparte en pantallas anchas (esa
+// versión tapaba mal y se sentía inconsistente). Ahora es una vista a
+// pantalla completa DENTRO del chat, igual que Juegos o Mensajes Privados:
+// reemplaza temporalmente los mensajes para dar todo el espacio a la lista
+// de música, y solo se cierra manualmente (botón 🎵 del header o la ✕ de
+// aquí adentro) — nunca solo por hacer clic afuera.
 function openMusicPanel() {
     if (!musicPanel) return;
     musicPanel.classList.add('open');
-    updateMusicPanelLayout();
+    if (chatContainer) chatContainer.classList.add('music-sidebar-open');
+    if (typeof hideDimControls === 'function') hideDimControls('hidden-by-music');
 }
 
 function closeMusicPanel() {
     if (!musicPanel) return;
-    musicPanel.classList.remove('open', 'side-panel');
-    musicPanel.style.top = '';
-    musicPanel.style.left = '';
-    musicPanel.style.height = '';
-    musicPanel.style.width = '';
+    musicPanel.classList.remove('open');
+    if (chatContainer) chatContainer.classList.remove('music-sidebar-open');
+    if (typeof showDimControls === 'function') showDimControls('hidden-by-music');
 }
 
 if (musicToggle && musicPanel) {
@@ -1238,50 +1243,9 @@ if (musicToggle && musicPanel) {
     });
 }
 
-// Si hay suficiente espacio a la derecha del chat, el panel se convierte en
-// una ventana propia fija ahí (mucho más grande, más fácil de administrar).
-// Si no hay espacio (pantallas angostas/móvil), se queda como desplegable
-// dentro del chat, como siempre.
-const MUSIC_SIDE_PANEL_MIN_WINDOW_WIDTH = 1100;
-
-function updateMusicPanelLayout() {
-    if (!musicPanel || !chatContainer) return;
-
-    const rect = chatContainer.getBoundingClientRect();
-    const availableWidth = window.innerWidth - rect.right - 24;
-    const enoughRoom = window.innerWidth >= MUSIC_SIDE_PANEL_MIN_WINDOW_WIDTH && availableWidth >= 280;
-
-    musicPanel.classList.toggle('side-panel', enoughRoom);
-
-    if (enoughRoom) {
-        const panelWidth = Math.min(420, availableWidth);
-        musicPanel.style.top = `${rect.top}px`;
-        musicPanel.style.left = `${rect.right + 14}px`;
-        musicPanel.style.height = `${rect.height}px`;
-        musicPanel.style.width = `${panelWidth}px`;
-    } else {
-        musicPanel.style.top = '';
-        musicPanel.style.left = '';
-        musicPanel.style.height = '';
-        musicPanel.style.width = '';
-    }
+if (musicPanelCloseBtn) {
+    musicPanelCloseBtn.addEventListener('click', closeMusicPanel);
 }
-
-// Recalcula si se redimensiona la ventana mientras el panel sigue abierto
-// (ej. maximizar/restaurar la ventana del navegador)
-window.addEventListener('resize', () => {
-    if (musicPanel && musicPanel.classList.contains('open')) updateMusicPanelLayout();
-});
-
-// Close the panel on outside click. Works for both inline and side-panel modes
-// because we check closest() which traverses into fixed-positioned elements too.
-document.addEventListener('click', (e) => {
-    if (!musicPanel || !musicPanel.classList.contains('open')) return;
-    if (e.target.closest('#musicPanel') || e.target.closest('#musicToggle')) return;
-    // Also ignore clicks that triggered the track-actions-menu or album-picker
-    if (e.target.closest('.track-quick-actions') || e.target.closest('.album-picker-modal')) return;
-    closeMusicPanel();
-});
 
 // --- CONTROL DE VOLUMEN ---
 function updateVolumeIcon(volume, muted) {
