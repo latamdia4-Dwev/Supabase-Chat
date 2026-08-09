@@ -65,7 +65,13 @@ body {
        Con min-height, el contenedor no baja de este tamaño: si no entra en
        el viewport, el body (arriba) scrollea para poder verlo completo. */
     min-height: 520px;
-    overflow: hidden;
+    /* overflow-x sigue oculto (evita scroll horizontal por el marquee de
+       títulos, etc). overflow-y va en "visible": es lo que permite que
+       .music-player-bar / .music-progress-bar con position:sticky se
+       queden FIJAS arriba cuando la página entera scrollea en ventanas
+       bajas — con overflow:hidden en el contenedor, sticky no funciona. */
+    overflow-x: hidden;
+    overflow-y: visible;
     transition: background 0.3s;
     position: relative;
     border: 1px solid #222;
@@ -453,7 +459,10 @@ body {
     background: var(--bg-preview);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
-    position: relative;
+    /* Se queda pegada arriba mientras la página scrollea (ventanas bajas),
+       en vez de desaparecer junto con el resto del contenido. */
+    position: sticky;
+    top: 0;
 }
 
 .music-player-bar button {
@@ -480,7 +489,21 @@ body {
     background: var(--bg-preview);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
-    position: relative;
+    /* top exacto (debajo de la altura real de .music-player-bar) lo fija
+       music.js vía --progress-bar-sticky-top, porque esa altura cambia
+       según el modo compacto (@media max-height). */
+    position: sticky;
+    top: var(--progress-bar-sticky-top, 0px);
+}
+
+/* z-index BAJO explícito por defecto: position:sticky crea su propio
+   "stacking context" automáticamente aunque no se le ponga z-index, y con
+   z-index:auto terminaba ganándole igual al panel de Mensajes Privados
+   (400). Con un valor explícito bajo, dm-panel/game-panel SIEMPRE lo tapan
+   correctamente salvo cuando se agrega .raised-above-panels. */
+.music-player-bar,
+.music-progress-bar {
+    z-index: 1;
 }
 
 /* Elevadas por encima del music-panel (z-index 420) SOLO mientras ese panel
@@ -959,6 +982,27 @@ html.brightness-dimmed {
     border-radius: 24px;
     padding: 4px 10px 4px 4px;
 }
+
+/* En ventanas angostas, el chat-container ocupa casi todo el ancho y su
+   header (con los botones 🔑💬🎮🎵☀️🙈) llega prácticamente hasta el borde
+   derecho de la ventana — chocando con este control, que es fixed al
+   viewport. Se baja debajo del header y se compacta (sin el slider,
+   solo el botón) para dejar de taparlos. */
+@media (max-width: 480px) {
+    .floating-dim-controls {
+        top: 62px;
+        right: 8px;
+        padding: 3px;
+    }
+
+    .floating-dim-controls #dimIntensitySlider {
+        display: none;
+    }
+}
+
+/* Mientras ese slider está oculto, un tap en 🌙/☀️ igual prende/apaga el
+   dimming (con el último nivel guardado) — ver dimToggleBtn en ui.js, que
+   ya no depende de que el slider esté visible. */
 
 .floating-dim-btn {
     width: 38px;

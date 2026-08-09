@@ -1349,8 +1349,9 @@ function closeMusicPanel() {
 // sidebar (≥960px) y modo pantalla completa, rompiendo los controles de
 // reproducción (music-player-bar / music-progress-bar quedaban mal ubicados).
 function syncSidebarModeOnResize() {
-    if (!chatContainer || !musicPanel || !musicPanel.classList.contains('open')) return;
-    chatContainer.classList.toggle('music-sidebar-open', window.innerWidth >= 960);
+    if (chatContainer && musicPanel && musicPanel.classList.contains('open')) {
+        chatContainer.classList.toggle('music-sidebar-open', window.innerWidth >= 960);
+    }
     repositionMusicPanel();
 }
 window.addEventListener('resize', syncSidebarModeOnResize);
@@ -1363,6 +1364,14 @@ window.addEventListener('resize', syncSidebarModeOnResize);
 // debajo de las barras que estén visibles en ese momento. En modo sidebar
 // no aplica (el panel flota aparte, a la derecha, y no las tapa).
 function repositionMusicPanel() {
+    // Mantiene .music-progress-bar pegada justo debajo de .music-player-bar
+    // (position:sticky), sin importar si el panel de música está abierto o
+    // no — así los controles quedan fijos apenas hay música sonando.
+    if (chatContainer && musicPlayerBar) {
+        const barHeight = musicPlayerBar.style.display !== 'none' ? musicPlayerBar.offsetHeight : 0;
+        chatContainer.style.setProperty('--progress-bar-sticky-top', `${barHeight}px`);
+    }
+
     if (!musicPanel || !chatContainer) return;
     if (chatContainer.classList.contains('music-sidebar-open')) {
         musicPanel.style.top = '';
@@ -1395,6 +1404,8 @@ if (musicToggle && musicPanel) {
 if (musicPanelCloseBtn) {
     musicPanelCloseBtn.addEventListener('click', closeMusicPanel);
 }
+
+if (typeof repositionMusicPanel === 'function') repositionMusicPanel();
 
 // --- CONTROL DE VOLUMEN ---
 function updateVolumeIcon(volume, muted) {
