@@ -41,7 +41,11 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    /* min-height (no height fijo) + overflow-y:auto: si la ventana es muy
+       baja y el contenedor no entra completo, la PÁGINA se puede scrollear
+       en vez de quedar todo apretado/cortado sin forma de verlo. */
+    min-height: 100vh;
+    overflow-y: auto;
     box-sizing: border-box;
     transition: background 0.3s;
 }
@@ -55,6 +59,12 @@ body {
     display: flex;
     flex-direction: column;
     height: 85vh;
+    /* Sin esto, en ventanas muy bajas 85vh se vuelve tan chico que el header
+       + barra de reproducción + pestañas (que no se achican) se comen todo
+       el espacio y no queda nada visible para la lista de canciones/mensajes.
+       Con min-height, el contenedor no baja de este tamaño: si no entra en
+       el viewport, el body (arriba) scrollea para poder verlo completo. */
+    min-height: 520px;
     overflow: hidden;
     transition: background 0.3s;
     position: relative;
@@ -443,6 +453,7 @@ body {
     background: var(--bg-preview);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
+    position: relative;
 }
 
 .music-player-bar button {
@@ -469,6 +480,16 @@ body {
     background: var(--bg-preview);
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     flex-shrink: 0;
+    position: relative;
+}
+
+/* Elevadas por encima del music-panel (z-index 420) SOLO mientras ese panel
+   está abierto (clase agregada/quitada por JS en openMusicPanel/
+   closeMusicPanel) — así no tapan el header del panel de Mensajes Privados
+   (z-index 400) ni el de Juegos cuando esos están abiertos en su lugar. */
+.music-player-bar.raised-above-panels,
+.music-progress-bar.raised-above-panels {
+    z-index: 430;
 }
 
 .progress-time {
@@ -1966,4 +1987,83 @@ html.brightness-dimmed {
 #bulkShareCancelBtn {
     color: #888;
     border-color: #333;
+}
+
+/* ================================================================
+   SCROLLBAR PERSONALIZADO (fino y discreto, estilo chat)
+   Aplica a TODAS las áreas con scroll: mensajes, DMs, música, emojis...
+   ================================================================ */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(62, 207, 142, 0.45);
+}
+
+/* ================================================================
+   CONTROLES COMPACTOS EN VENTANAS BAJAS
+   Cuando la altura disponible es chica, la barra de reproducción y la de
+   progreso ocupan menos espacio: botones más chicos, sin volumen (queda
+   solo el ícono 🔊/🔇 para silenciar), texto/tiempo más discreto.
+   ================================================================ */
+@media (max-height: 700px) {
+    .music-player-bar {
+        padding: 5px 10px;
+        gap: 6px;
+    }
+
+    .music-player-bar button {
+        width: 24px;
+        height: 24px;
+        font-size: 0.85em;
+    }
+
+    .current-track {
+        font-size: 0.76em;
+    }
+
+    /* En espacio reducido, el slider de volumen sobra: solo queda el ícono
+       para silenciar/activar, que ya cumple la función esencial. */
+    .volume-control input[type="range"] {
+        display: none;
+    }
+
+    .music-progress-bar {
+        padding: 2px 10px 5px 10px;
+        gap: 6px;
+    }
+
+    .progress-time {
+        font-size: 0.65em;
+        min-width: 24px;
+    }
+
+    .music-panel-header {
+        padding: 8px 12px;
+    }
+
+    .music-tabs {
+        padding: 5px 8px 0 8px;
+    }
+
+    .music-tab {
+        font-size: 0.7em;
+        padding: 4px 2px;
+    }
 }

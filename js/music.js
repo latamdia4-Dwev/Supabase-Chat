@@ -156,7 +156,10 @@ function formatTime(seconds) {
 function updateProgressVisibility() {
     if (!musicProgressBar || !audioPlayer) return;
     const hasFiniteDuration = isFinite(audioPlayer.duration) && audioPlayer.duration > 0;
-    musicProgressBar.style.display = hasFiniteDuration ? 'flex' : 'none';
+    const wasVisible = musicProgressBar.style.display === 'flex';
+    const nowVisible = hasFiniteDuration;
+    musicProgressBar.style.display = nowVisible ? 'flex' : 'none';
+    if (wasVisible !== nowVisible && typeof repositionMusicPanel === 'function') repositionMusicPanel();
 }
 
 if (audioPlayer) {
@@ -904,6 +907,7 @@ async function playUploadedTrack(track, index = -1) {
         setCurrentTrackTitle(track.display_name || 'Reproduciendo...');
         updateMediaSessionMetadata(track.display_name, track.is_public ? '\u{1F310} Pública' : '\u{1F512} Privada', null);
         if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+        repositionMusicPanel();
     } catch (err) {
         console.error('Error al obtener URL firmada:', err);
 
@@ -1217,6 +1221,7 @@ function playRadioStation(station, index = -1) {
 
     // Mostrar la barra de reproducción persistente (el panel se queda abierto)
     if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+    repositionMusicPanel();
 }
 
 // Botón de búsqueda
@@ -1310,8 +1315,20 @@ if (prevTrackBtn) {
 function openMusicPanel() {
     if (!musicPanel) return;
     musicPanel.classList.add('open');
-    if (chatContainer) chatContainer.classList.add('music-sidebar-open');
-    setMusicMode('uploads');
+    // Eleva la barra de reproducción/progreso SOLO mientras el panel de
+    // música está abierto, para que no tapen el header de Mensajes
+    // Privados ni el de Juegos si el usuario cambia de panel después.
+    if (musicPlayerBar) musicPlayerBar.classList.add('raised-above-panels');
+    if (musicProgressBar) musicProgressBar.classList.add('raised-above-panels');
+    syncSidebarModeOnResize();
+    repositionMusicPanel();
+    // Solo fija la pestaña "Mi música" la PRIMERA vez que se abre en esta
+    // sesión. Reaperturas posteriores conservan la pestaña/búsqueda donde
+    // el usuario se quedó (antes se reseteaba a "uploads" cada vez).
+    if (!musicPanel.dataset.opened) {
+        setMusicMode('uploads');
+        musicPanel.dataset.opened = '1';
+    }
     if (typeof hideDimControls === 'function') hideDimControls('hidden-by-music');
 }
 
@@ -1319,7 +1336,53 @@ function closeMusicPanel() {
     if (!musicPanel) return;
     musicPanel.classList.remove('open');
     if (chatContainer) chatContainer.classList.remove('music-sidebar-open');
+    musicPanel.style.top = '';
+    musicPanel.style.height = '';
+    if (musicPlayerBar) musicPlayerBar.classList.remove('raised-above-panels');
+    if (musicProgressBar) musicProgressBar.classList.remove('raised-above-panels');
     if (typeof showDimControls === 'function') showDimControls('hidden-by-music');
+}
+
+// Mantiene .music-sidebar-open sincronizado con el ancho REAL de la ventana
+// en todo momento (no solo al abrir el panel). Sin esto, redimensionar el
+// navegador con el panel ya abierto dejaba el layout "a medias" entre modo
+// sidebar (≥960px) y modo pantalla completa, rompiendo los controles de
+// reproducción (music-player-bar / music-progress-bar quedaban mal ubicados).
+function syncSidebarModeOnResize() {
+    if (!chatContainer || !musicPanel || !musicPanel.classList.contains('open')) return;
+    chatContainer.classList.toggle('music-sidebar-open', window.innerWidth >= 960);
+    repositionMusicPanel();
+}
+window.addEventListener('resize', syncSidebarModeOnResize);
+
+// En modo pantalla completa (ventana angosta, sin sidebar), el music-panel
+// usaba top:0 / height:100% y por lo tanto TAPABA la barra de reproducción
+// persistente y la de progreso (que viven arriba, fuera del panel) — se veía
+// la canción sonando resaltada en la lista pero sin ningún control ▶⏮⏭.
+// Esta función recalcula dinámicamente dónde debe empezar el panel: justo
+// debajo de las barras que estén visibles en ese momento. En modo sidebar
+// no aplica (el panel flota aparte, a la derecha, y no las tapa).
+function repositionMusicPanel() {
+    if (!musicPanel || !chatContainer) return;
+    if (chatContainer.classList.contains('music-sidebar-open')) {
+        musicPanel.style.top = '';
+        musicPanel.style.height = '';
+        return;
+    }
+    let offset = 0;
+    // El header ("Supabase Chat Pro" + íconos) también va ANTES del panel en
+    // el flujo normal — faltaba sumarlo, por eso el panel arrancaba a mitad
+    // de la barra de progreso en vez de justo debajo de ella.
+    const chatHeaderEl = chatContainer.querySelector('.chat-header');
+    if (chatHeaderEl) offset += chatHeaderEl.offsetHeight;
+    if (musicPlayerBar && musicPlayerBar.style.display !== 'none') {
+        offset += musicPlayerBar.offsetHeight;
+    }
+    if (musicProgressBar && musicProgressBar.style.display !== 'none') {
+        offset += musicProgressBar.offsetHeight;
+    }
+    musicPanel.style.top = `${offset}px`;
+    musicPanel.style.height = `calc(100% - ${offset}px)`;
 }
 
 if (musicToggle && musicPanel) {
