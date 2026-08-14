@@ -674,7 +674,7 @@ async function loadUploadedTracks() {
         // Sin conexión (o el servidor no responde): en vez de un error seco,
         // mostramos lo que sí tenemos guardado localmente para escuchar offline.
         if (looksLikeNetworkError(err)) {
-            renderOfflineTracksFallback();
+            renderOfflineTracksFallback('uploads');
             return;
         }
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
@@ -682,19 +682,33 @@ async function loadUploadedTracks() {
 }
 
 // Dibuja la lista usando solo lo que hay guardado offline (localStorage +
-// IndexedDB), para cuando no hay conexión y Supabase no responde.
-function renderOfflineTracksFallback() {
+// IndexedDB), para cuando no hay conexión y Supabase no responde. Se usa
+// tanto en "Mi música" (mode 'uploads': solo tus propias canciones
+// cacheadas) como en "Música compartida" (mode 'shared': canciones públicas
+// de cualquier usuario que hayas descargado para offline), para que la
+// lista nunca desaparezca al perder la conexión — siempre queda al menos
+// lo que ya está precargado.
+function renderOfflineTracksFallback(mode) {
     const meta = getOfflineTracksMeta();
-    const ownCached = Object.values(meta).filter(t => !currentUserId || t.user_id === currentUserId);
+    const cached = mode === 'shared'
+        ? Object.values(meta).filter(t => t.is_public)
+        : Object.values(meta).filter(t => !currentUserId || t.user_id === currentUserId);
 
-    if (ownCached.length === 0) {
-        radioResults.innerHTML = '<div class="radio-status">\uD83D\uDCF6 Sin conexión y no hay canciones guardadas offline todavía.</div>';
+    const emptyMsg = mode === 'shared'
+        ? '\uD83D\uDCF6 Sin conexión y no has guardado música compartida offline todavía.'
+        : '\uD83D\uDCF6 Sin conexión y no hay canciones guardadas offline todavía.';
+    const noticeMsg = mode === 'shared'
+        ? '\uD83D\uDCF6 Sin conexión — mostrando solo música compartida guardada offline'
+        : '\uD83D\uDCF6 Sin conexión — mostrando solo canciones guardadas offline';
+
+    if (cached.length === 0) {
+        radioResults.innerHTML = `<div class="radio-status">${emptyMsg}</div>`;
         currentResultsList = [];
         updateCacheInfoBar();
         return;
     }
 
-    const filtered = filterTracksBySearch(ownCached);
+    const filtered = filterTracksBySearch(cached);
     if (filtered.length === 0) {
         radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda (modo offline).</div>';
         currentResultsList = [];
@@ -708,7 +722,7 @@ function renderOfflineTracksFallback() {
     const notice = document.createElement('div');
     notice.className = 'radio-status';
     notice.style.cssText = 'padding:6px 10px;opacity:0.8;';
-    notice.textContent = '\uD83D\uDCF6 Sin conexión — mostrando solo canciones guardadas offline';
+    notice.textContent = noticeMsg;
     radioResults.insertBefore(notice, radioResults.firstChild);
 }
 
@@ -760,6 +774,10 @@ async function updateCacheInfoBar() {
 async function loadSharedTracks() {
     if (!radioResults) return;
     radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando música compartida...</div>';
+
+    // Refresh in-memory cache map first — se necesita tanto si hay red como si no.
+    await refreshCachedIds();
+
     try {
         const { data, error } = await withTimeout(
             supabaseClient
@@ -781,11 +799,14 @@ async function loadSharedTracks() {
             return;
         }
         renderTracksGrouped(filtered);
+        updateCacheInfoBar();
     } catch (err) {
         console.error('Error al cargar música compartida:', err);
+
+        // Igual que en "Mi música": sin conexión, mostramos lo que ya se
+        // haya descargado para offline en vez de un mensaje seco.
         if (looksLikeNetworkError(err)) {
-            radioResults.innerHTML = '<div class="radio-status">\uD83D\uDCF6 Sin conexión. La música compartida de otros usuarios necesita internet — ve a "Mi música" para escuchar lo que tengas guardado offline.</div>';
-            currentResultsList = [];
+            renderOfflineTracksFallback('shared');
             return;
         }
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar la música compartida.</div>';
@@ -1041,6 +1062,28 @@ async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
     }
 }
 
+// Botón de descarga/quitar para offline — usado tanto en tus propias
+// canciones ("Mi música") como en las de otros ("Música compartida"), para
+// que cualquier canción se pueda precargar y sobrevivir sin conexión.
+function createCacheButton(track) {
+    const cacheBtn = document.createElement('button');
+    cacheBtn.type = 'button';
+    cacheBtn.className = 'track-quick-btn track-cache-btn';
+    const isCached = !!_cachedTrackIds[track.id];
+    cacheBtn.textContent = isCached ? '\u2705' : '\uD83D\uDCE5';
+    cacheBtn.title = isCached ? 'Disponible offline \u2014 clic para quitar' : 'Guardar para offline';
+    cacheBtn.onclick = async (e) => {
+        e.stopPropagation();
+        if (_cachedTrackIds[track.id]) {
+            await uncacheTrack(track.id, cacheBtn);
+            showToast('Quitada del almacenamiento offline', 'info');
+        } else {
+            await cacheTrack(track, cacheBtn);
+        }
+    };
+    return cacheBtn;
+}
+
 function renderTrackItem(track, index) {
     const isMine = track.user_id === currentUserId;
     const item = document.createElement('div');
@@ -1142,27 +1185,18 @@ function renderTrackItem(track, index) {
             } catch (err) { showToast('No se pudo eliminar: ' + err.message, 'error'); }
         };
 
-        // Cache button — toggles offline availability
-        const cacheBtn = document.createElement('button');
-        cacheBtn.type = 'button';
-        cacheBtn.className = 'track-quick-btn track-cache-btn';
-        const isCached = !!_cachedTrackIds[track.id];
-        cacheBtn.textContent = isCached ? '\u2705' : '\uD83D\uDCE5';
-        cacheBtn.title = isCached ? 'Disponible offline \u2014 clic para quitar' : 'Guardar para offline';
-        cacheBtn.onclick = async (e) => {
-            e.stopPropagation();
-            if (_cachedTrackIds[track.id]) {
-                await uncacheTrack(track.id, cacheBtn);
-                showToast('Quitada del almacenamiento offline', 'info');
-            } else {
-                await cacheTrack(track, cacheBtn);
-            }
-        };
-
         actions.appendChild(visBtn);
         actions.appendChild(albumBtn);
         actions.appendChild(delBtn);
-        actions.appendChild(cacheBtn);
+        actions.appendChild(createCacheButton(track));
+        item.appendChild(actions);
+    } else {
+        // Canciones de otras personas en "Música compartida": no hay edición
+        // ni borrado (no son tuyas), pero sí se pueden precargar para
+        // offline igual que en "Mi música".
+        const actions = document.createElement('div');
+        actions.className = 'track-quick-actions';
+        actions.appendChild(createCacheButton(track));
         item.appendChild(actions);
     }
 
