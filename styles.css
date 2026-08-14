@@ -431,10 +431,10 @@ body {
 .floating-dim-controls.hidden-by-game,
 .floating-dim-controls.hidden-by-dm,
 .floating-dim-controls.hidden-by-music,
-.floating-whatsnew-controls.hidden-by-lightbox,
-.floating-whatsnew-controls.hidden-by-game,
-.floating-whatsnew-controls.hidden-by-dm,
-.floating-whatsnew-controls.hidden-by-music {
+.floating-whatsnew-btn.hidden-by-lightbox,
+.floating-whatsnew-btn.hidden-by-game,
+.floating-whatsnew-btn.hidden-by-dm,
+.floating-whatsnew-btn.hidden-by-music {
     display: none !important;
 }
 
@@ -1030,26 +1030,25 @@ html.brightness-dimmed {
 }
 
 /* ── BOTÓN FLOTANTE "NOVEDADES" ──────────────────────────────────────
-   Simétrico al de brillo, pero del lado izquierdo, para no chocar con
-   él. Abre un panel explicando (sin tecnicismos) todo lo que el chat
-   sabe hacer. */
-.floating-whatsnew-controls {
+   No tiene top/left fijos: whatsnew.js calcula su posición (pegado al
+   borde izquierdo de la caja del chat, a la altura del header) según
+   dónde quede la caja en cada pantalla — a diferencia del control de
+   brillo, que sí vive en una esquina fija de la ventana. */
+.floating-whatsnew-btn {
     position: fixed;
-    top: 14px;
-    left: 14px;
     z-index: 9999;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid #333;
+    background: rgba(20, 20, 20, 0.85);
+    color: #fff;
+    font-size: 1.15em;
+    cursor: pointer;
+    padding: 0;
     display: flex;
     align-items: center;
-    background: rgba(20, 20, 20, 0.85);
-    border: 1px solid #333;
-    border-radius: 24px;
-}
-
-@media (max-width: 480px) {
-    .floating-whatsnew-controls {
-        top: 62px;
-        left: 8px;
-    }
+    justify-content: center;
 }
 
 /* ── PANEL "NOVEDADES" ────────────────────────────────────────────── */

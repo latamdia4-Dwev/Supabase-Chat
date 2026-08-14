@@ -117,3 +117,37 @@ document.addEventListener('keydown', (e) => {
         closeWhatsNew();
     }
 });
+
+// ── POSICIÓN DEL BOTÓN FLOTANTE ────────────────────────────────────────
+// La caja del chat (.chat-container) va centrada en la pantalla, así que
+// no hay una esquina fija donde pegar el botón — se calcula en cada
+// momento dónde quedó el borde izquierdo de la caja, a la altura del
+// header, y el botón se coloca justo ahí (pegado, como al lado de la
+// llave 🔑). Si la pantalla es angosta y no hay espacio a los costados,
+// usa el mismo lugar de respaldo que ya usa el control de brillo.
+function positionWhatsNewBtn() {
+    if (!whatsNewToggleBtn || !chatContainer) return;
+
+    const containerRect = chatContainer.getBoundingClientRect();
+    const headerEl = chatContainer.querySelector('.chat-header');
+    const headerRect = headerEl ? headerEl.getBoundingClientRect() : containerRect;
+    const btnSize = 40;
+    const gap = 10;
+    const verticalCenter = headerRect.top + (headerRect.height / 2) - (btnSize / 2);
+
+    if (containerRect.left > btnSize + gap + 8) {
+        whatsNewToggleBtn.style.left = (containerRect.left - btnSize - gap) + 'px';
+        whatsNewToggleBtn.style.top = Math.max(8, verticalCenter) + 'px';
+    } else {
+        // Pantalla angosta, sin espacio a los costados de la caja.
+        whatsNewToggleBtn.style.left = '8px';
+        whatsNewToggleBtn.style.top = '62px';
+    }
+}
+
+window.addEventListener('resize', positionWhatsNewBtn);
+window.addEventListener('scroll', positionWhatsNewBtn, { passive: true });
+positionWhatsNewBtn();
+// El layout del header (fuentes, íconos) puede terminar de asentarse un
+// instante después del primer render — recalcula una vez más por las dudas.
+setTimeout(positionWhatsNewBtn, 300);

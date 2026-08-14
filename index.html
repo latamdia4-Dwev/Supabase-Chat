@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supabase Chat Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=20260722">
+    <link rel="stylesheet" href="styles.css?v=20260813-2">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -203,13 +203,11 @@
         <input type="range" id="dimIntensitySlider" min="20" max="100" value="45" title="Nivel de brillo">
     </div>
 
-    <!-- BOTÓN FLOTANTE "NOVEDADES": abre un panel con la lista de todo lo
-         que el chat sabe hacer, explicado sin tecnicismos, para cualquier
-         usuario. Vive fuera del chat (igual que el control de brillo, del
-         otro lado), siempre visible. -->
-    <div class="floating-whatsnew-controls">
-        <button id="whatsNewToggleBtn" class="floating-dim-btn" title="Novedades y funciones del chat">ℹ️</button>
-    </div>
+    <!-- BOTÓN FLOTANTE "NOVEDADES": flota fuera de la caja del chat, pegado
+         a su borde izquierdo a la altura del header (junto a la llave 🔑) —
+         ver positionWhatsNewBtn() en whatsnew.js, que calcula su posición
+         según dónde quede la caja del chat en la pantalla. -->
+    <button id="whatsNewToggleBtn" class="floating-whatsnew-btn" title="Novedades y funciones del chat">ℹ️</button>
 
     <!-- MODAL "NOVEDADES" -->
     <div class="whatsnew-overlay" id="whatsNewOverlay">
@@ -227,12 +225,12 @@
     <script src="js/config.js?v=20260722"></script>
     <script src="js/auth.js?v=20260722"></script>
     <script src="js/lock.js?v=20260722"></script>
-    <script src="js/ui.js?v=20260722"></script>
+    <script src="js/ui.js?v=20260813-2"></script>
     <script src="js/music.js?v=20260813"></script>
     <script src="js/chat.js?v=20260722"></script>
     <script src="js/dm.js?v=20260722"></script>
     <script src="js/media-picker.js?v=20260722"></script>
-    <script src="js/whatsnew.js?v=20260813"></script>
+    <script src="js/whatsnew.js?v=20260813-2"></script>
 </body>
 
 </html>

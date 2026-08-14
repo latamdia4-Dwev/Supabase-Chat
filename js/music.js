@@ -1784,9 +1784,29 @@ if (volumeSlider) {
     });
 }
 
+// En ventanas bajas (@media max-height: 700px, ver styles.css), el slider
+// de volumen arranca colapsado para ahorrar espacio, y este mismo botón
+// 🔊/🔇 lo despliega. Antes, el primer toque mostraba el slider PERO
+// también muteaba de una vez — molesto si solo querías subir/bajar el
+// volumen. Ahora: si el slider está colapsado, el primer toque solo lo
+// despliega (sin mutear); silenciar/reactivar queda para un toque
+// posterior, con el slider ya visible. En ventanas normales (donde el
+// slider siempre está visible) el botón sigue muteando de inmediato.
+const shortWindowQuery = window.matchMedia('(max-height: 700px)');
+
 if (muteBtn) {
     muteBtn.addEventListener('click', () => {
         if (!audioPlayer) return;
+
+        const volumeControlEl = muteBtn.closest('.volume-control');
+        const isCollapsed = shortWindowQuery.matches &&
+            volumeControlEl && !volumeControlEl.classList.contains('volume-expanded');
+
+        if (isCollapsed) {
+            volumeControlEl.classList.add('volume-expanded');
+            return;
+        }
+
         if (isMuted) {
             audioPlayer.volume = lastVolume;
             if (volumeSlider) volumeSlider.value = Math.round(lastVolume * 100);
@@ -1798,9 +1818,6 @@ if (muteBtn) {
             isMuted = true;
         }
         updateVolumeIcon(audioPlayer.volume, isMuted);
-
-        const volumeControlEl = muteBtn.closest('.volume-control');
-        if (volumeControlEl) volumeControlEl.classList.toggle('volume-expanded');
     });
 }
 

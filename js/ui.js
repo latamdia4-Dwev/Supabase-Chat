@@ -209,12 +209,12 @@ adminToggle.addEventListener('click', () => {
 // 'hidden-by-game') para no pisarse entre sí: los controles solo vuelven a
 // mostrarse cuando NINGÚN panel los está ocultando.
 function hideDimControls(reasonClass) {
-    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-controls')
+    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-btn')
         .forEach(el => el.classList.add(reasonClass));
 }
 
 function showDimControls(reasonClass) {
-    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-controls')
+    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-btn')
         .forEach(el => el.classList.remove(reasonClass));
 }
 
