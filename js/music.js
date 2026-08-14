@@ -7,6 +7,141 @@
 
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
 
+// ══════════════════════════════════════════════════════════════════════
+// OFFLINE AUDIO CACHE — IndexedDB
+// Stores audio files as Blobs keyed by track.id so they survive across
+// sessions and play back without internet. Only "Mi musica" tracks are
+// cached (signed-URL based); radio streams are live-only by nature.
+// ══════════════════════════════════════════════════════════════════════
+const AUDIO_CACHE_DB  = 'audioCacheDB';
+const AUDIO_CACHE_VER = 1;
+const AUDIO_STORE     = 'blobs';
+
+let _audioCacheDb = null;
+
+function openAudioCacheDB() {
+    if (_audioCacheDb) return Promise.resolve(_audioCacheDb);
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(AUDIO_CACHE_DB, AUDIO_CACHE_VER);
+        req.onupgradeneeded = (e) => { e.target.result.createObjectStore(AUDIO_STORE); };
+        req.onsuccess  = (e) => { _audioCacheDb = e.target.result; resolve(_audioCacheDb); };
+        req.onerror    = () => reject(req.error);
+    });
+}
+
+async function cacheGet(trackId) {
+    const db = await openAudioCacheDB();
+    return new Promise((resolve) => {
+        const req = db.transaction(AUDIO_STORE, 'readonly').objectStore(AUDIO_STORE).get(trackId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror   = () => resolve(null);
+    });
+}
+
+async function cachePut(trackId, blob) {
+    const db = await openAudioCacheDB();
+    return new Promise((resolve, reject) => {
+        const req = db.transaction(AUDIO_STORE, 'readwrite').objectStore(AUDIO_STORE).put(blob, trackId);
+        req.onsuccess = () => resolve();
+        req.onerror   = () => reject(req.error);
+    });
+}
+
+async function cacheDelete(trackId) {
+    const db = await openAudioCacheDB();
+    return new Promise((resolve) => {
+        const tx = db.transaction(AUDIO_STORE, 'readwrite');
+        tx.objectStore(AUDIO_STORE).delete(trackId);
+        tx.oncomplete = resolve;
+    });
+}
+
+async function cacheGetAllKeys() {
+    const db = await openAudioCacheDB();
+    return new Promise((resolve) => {
+        const req = db.transaction(AUDIO_STORE, 'readonly').objectStore(AUDIO_STORE).getAllKeys();
+        req.onsuccess = () => {
+            const map = {};
+            (req.result || []).forEach(k => { map[k] = true; });
+            resolve(map);
+        };
+        req.onerror = () => resolve({});
+    });
+}
+
+async function cacheGetTotalSize() {
+    const db = await openAudioCacheDB();
+    return new Promise((resolve) => {
+        const req = db.transaction(AUDIO_STORE, 'readonly').objectStore(AUDIO_STORE).getAll();
+        req.onsuccess = () => {
+            const total = (req.result || []).reduce((sum, b) => sum + (b.size || 0), 0);
+            resolve(total);
+        };
+        req.onerror = () => resolve(0);
+    });
+}
+
+function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+let _cachedTrackIds = {};
+
+async function refreshCachedIds() {
+    _cachedTrackIds = await cacheGetAllKeys();
+}
+
+async function cacheTrack(track, iconEl) {
+    if (iconEl) { iconEl.textContent = '\u23F3'; iconEl.title = 'Descargando...'; }
+    try {
+        const signedUrl = await getSignedUrl(track.file_name);
+        const resp = await fetch(signedUrl);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const blob = await resp.blob();
+        await cachePut(track.id, blob);
+        _cachedTrackIds[track.id] = true;
+        if (iconEl) { iconEl.textContent = '\u2705'; iconEl.title = 'Disponible offline — clic para quitar'; }
+    } catch (err) {
+        console.error('Error al cachear:', err);
+        if (iconEl) { iconEl.textContent = '\uD83D\uDCE5'; iconEl.title = 'Guardar para offline'; }
+        alert('No se pudo descargar: ' + err.message);
+    }
+}
+
+async function uncacheTrack(trackId, iconEl) {
+    await cacheDelete(trackId);
+    delete _cachedTrackIds[trackId];
+    if (iconEl) { iconEl.textContent = '\uD83D\uDCE5'; iconEl.title = 'Guardar para offline'; }
+}
+
+// Reads from cache or fetches signed URL, always returning an object-URL for playback.
+// Caches the blob automatically after first download.
+async function getPlaybackUrl(track) {
+    const cached = await cacheGet(track.id);
+    if (cached) {
+        _cachedTrackIds[track.id] = true;
+        return { url: URL.createObjectURL(cached), fromCache: true };
+    }
+    const signedUrl = await getSignedUrl(track.file_name);
+    // Background cache after download starts (fire and forget)
+    fetch(signedUrl).then(r => r.ok ? r.blob() : null).then(blob => {
+        if (blob) cachePut(track.id, blob).then(() => { _cachedTrackIds[track.id] = true; updateCacheIconForTrack(track.id); });
+    }).catch(() => {});
+    return { url: signedUrl, fromCache: false };
+}
+
+// Updates the cache icon on an already-rendered row without re-rendering
+function updateCacheIconForTrack(trackId) {
+    const el = document.querySelector(`.radio-item[data-track-id="${trackId}"] .track-cache-btn`);
+    if (!el) return;
+    el.textContent = '\u2705';
+    el.title = 'Disponible offline — clic para quitar';
+}
+
+
+
 // Elementos nuevos del panel (no declarados en config.js): la fila del
 // álbum (ahora separada del botón de subir, junto a la búsqueda) y el
 // botón ✕ para cerrar el panel a pantalla completa.
@@ -80,7 +215,7 @@ function updateShuffleRepeatUI() {
         repeatBtn.textContent = repeatMode === 'one' ? '🔂' : '🔁';
         repeatBtn.title = repeatMode === 'off' ? 'Repetir (desactivado)'
             : repeatMode === 'all' ? 'Repetir toda la lista'
-                : 'Repetir esta pista';
+            : 'Repetir esta pista';
     }
 }
 
@@ -383,6 +518,9 @@ async function loadUploadedTracks() {
             currentResultsList = [];
             return;
         }
+        // Refresh in-memory cache map so icons render correctly
+        await refreshCachedIds();
+
         const filtered = filterTracksBySearch(data);
         if (filtered.length === 0) {
             radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda.</div>';
@@ -390,10 +528,57 @@ async function loadUploadedTracks() {
             return;
         }
         renderTracksGrouped(filtered);
+        updateCacheInfoBar();
     } catch (err) {
         console.error('Error al cargar música:', err);
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
     }
+}
+
+// Shows a small info strip at the bottom of the panel: total cached size + clear-all button.
+async function updateCacheInfoBar() {
+    let bar = document.getElementById('cacheInfoBar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'cacheInfoBar';
+        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;' +
+            'font-size:0.72em;color:#888;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;';
+        if (musicPanel) musicPanel.appendChild(bar);
+    }
+
+    const totalBytes = await cacheGetTotalSize();
+    const cachedCount = Object.keys(_cachedTrackIds).length;
+
+    if (cachedCount === 0) {
+        bar.innerHTML = '<span>\uD83D\uDCBE Sin canciones en caché offline</span>';
+        return;
+    }
+
+    bar.innerHTML = '';
+
+    const label = document.createElement('span');
+    label.style.flex = '1';
+    label.textContent = cachedCount + ' cancion' + (cachedCount !== 1 ? 'es' : '') +
+        ' en caché · ' + formatBytes(totalBytes);
+    bar.appendChild(label);
+
+    const clearBtn = document.createElement('button');
+    clearBtn.textContent = '\uD83D\uDDD1\uFE0F Limpiar caché';
+    clearBtn.style.cssText = 'background:rgba(255,77,77,0.1);border:1px solid #ff4d4d;' +
+        'border-radius:12px;padding:3px 10px;font-size:0.9em;cursor:pointer;color:#ff4d4d;';
+    clearBtn.onclick = async () => {
+        if (!confirm('\u00BFEliminar todas las canciones guardadas offline?')) return;
+        const db = await openAudioCacheDB();
+        await new Promise(resolve => {
+            const tx = db.transaction(AUDIO_STORE, 'readwrite');
+            tx.objectStore(AUDIO_STORE).clear();
+            tx.oncomplete = resolve;
+        });
+        _cachedTrackIds = {};
+        // Re-render so icons update
+        if (currentMusicMode === 'uploads') loadUploadedTracks();
+    };
+    bar.appendChild(clearBtn);
 }
 
 // Música compartida: todas las canciones que CUALQUIER usuario marcó como
@@ -716,6 +901,7 @@ function renderTrackItem(track, index) {
     const item = document.createElement('div');
     item.className = 'radio-item';
     item.dataset.trackKey = track.file_name;
+    item.dataset.trackId = track.id; // used by updateCacheIconForTrack
 
     // ── Checkbox (own tracks only, hidden unless selection mode is on) ──
     if (isMine) {
@@ -813,9 +999,26 @@ function renderTrackItem(track, index) {
             } catch (err) { alert('No se pudo eliminar: ' + err.message); }
         };
 
+        // Cache button — toggles offline availability
+        const cacheBtn = document.createElement('button');
+        cacheBtn.type = 'button';
+        cacheBtn.className = 'track-quick-btn track-cache-btn';
+        const isCached = !!_cachedTrackIds[track.id];
+        cacheBtn.textContent = isCached ? '\u2705' : '\uD83D\uDCE5';
+        cacheBtn.title = isCached ? 'Disponible offline \u2014 clic para quitar' : 'Guardar para offline';
+        cacheBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (_cachedTrackIds[track.id]) {
+                await uncacheTrack(track.id, cacheBtn);
+            } else {
+                await cacheTrack(track, cacheBtn);
+            }
+        };
+
         actions.appendChild(visBtn);
         actions.appendChild(albumBtn);
         actions.appendChild(delBtn);
+        actions.appendChild(cacheBtn);
         item.appendChild(actions);
     }
 
@@ -890,50 +1093,64 @@ async function bulkSetPublic(makePublic) {
     }
 }
 
+// Revoked object-URL from the previous blob playback (if any) to free memory.
+let _lastBlobUrl = null;
+
 async function playUploadedTrack(track, index = -1) {
     if (!audioPlayer) return;
     if (index >= 0) currentResultIndex = index;
+
+    setCurrentTrackTitle('Cargando... ' + (track.display_name || ''));
+
     try {
-        const signedUrl = await getSignedUrl(track.file_name);
-        audioPlayer.src = signedUrl;
+        const { url, fromCache } = await getPlaybackUrl(track);
+
+        if (_lastBlobUrl) { URL.revokeObjectURL(_lastBlobUrl); _lastBlobUrl = null; }
+        if (url.startsWith('blob:')) _lastBlobUrl = url;
+
+        audioPlayer.src = url;
         audioPlayer.play()
-            .then(() => { isPlaying = true; if (playPauseBtn) playPauseBtn.textContent = '⏸'; })
-            .catch(err => {
-                console.error('Error al reproducir:', err);
-                setCurrentTrackTitle('No se pudo reproducir este archivo');
-            });
+            .then(() => { isPlaying = true; if (playPauseBtn) playPauseBtn.textContent = '\u23F8'; })
+            .catch(err => { console.error('Error al reproducir:', err); setCurrentTrackTitle('No se pudo reproducir este archivo'); });
+
         currentPlayingKey = track.file_name;
         updatePlayingHighlight();
-        setCurrentTrackTitle(track.display_name || 'Reproduciendo...');
-        updateMediaSessionMetadata(track.display_name, track.is_public ? '\u{1F310} Pública' : '\u{1F512} Privada', null);
+        // Show disk icon in title when playing from local cache
+        setCurrentTrackTitle((track.display_name || 'Reproduciendo...') + (fromCache ? ' \uD83D\uDCBE' : ''));
+        updateMediaSessionMetadata(track.display_name, track.is_public ? '\uD83C\uDF10 P\u00FAblica' : '\uD83D\uDD12 Privada', null);
         if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
-        repositionMusicPanel();
-    } catch (err) {
-        console.error('Error al obtener URL firmada:', err);
+        if (typeof repositionMusicPanel === 'function') repositionMusicPanel();
 
-        // El archivo ya no existe en el bucket (huérfano por el bug de nombres
-        // duplicados, o borrado manualmente desde Storage), aunque la fila en
-        // music_tracks siga ahí. En vez de dejar el error genérico repitiéndose
-        // cada vez que se toca esa canción, se ofrece limpiar la fila rota.
+    } catch (err) {
+        console.error('Error al reproducir:', err);
+
+        // If network failed, try local cache as emergency fallback
+        const cached = await cacheGet(track.id).catch(() => null);
+        if (cached) {
+            if (_lastBlobUrl) { URL.revokeObjectURL(_lastBlobUrl); _lastBlobUrl = null; }
+            _lastBlobUrl = URL.createObjectURL(cached);
+            audioPlayer.src = _lastBlobUrl;
+            audioPlayer.play().then(() => { isPlaying = true; if (playPauseBtn) playPauseBtn.textContent = '\u23F8'; }).catch(() => {});
+            setCurrentTrackTitle((track.display_name || '') + ' \uD83D\uDCBE (sin conexi\u00F3n)');
+            currentPlayingKey = track.file_name;
+            updatePlayingHighlight();
+            if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
+            return;
+        }
+
         const notFound = err && err.message && /not.?found/i.test(err.message);
         if (notFound && track.id) {
-            const wantsDelete = confirm(
-                `"${track.display_name}" ya no existe en el almacenamiento (posiblemente por un choque de nombres al subir varias a la vez). ¿Quitarla de tu lista?`
-            );
+            const wantsDelete = confirm('"' + track.display_name + '" ya no existe en el almacenamiento. \u00BFQuitarla de tu lista?');
             if (wantsDelete) {
-                try {
-                    await supabaseClient.from('music_tracks').delete().eq('id', track.id);
-                    loadUploadedTracks();
-                } catch (delErr) {
-                    console.error('Error al limpiar la fila huérfana:', delErr);
-                }
+                try { await supabaseClient.from('music_tracks').delete().eq('id', track.id); loadUploadedTracks(); }
+                catch (delErr) { console.error('Error al limpiar la fila hu\u00E9rfana:', delErr); }
                 return;
             }
         }
-
         alert('No se pudo acceder al archivo: ' + err.message);
     }
 }
+
 
 // Upload: guarda el archivo en el bucket privado + fila en music_tracks
 // Abre un modal de álbum adaptado para la subida (igual que openAlbumPicker

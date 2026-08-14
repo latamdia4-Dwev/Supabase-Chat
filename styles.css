@@ -558,7 +558,6 @@ body {
    En esos casos el panel sale del flujo del chat-container y flota como
    sidebar al costado derecho, sin tapar los mensajes. ──────────────────────── */
 @media (min-width: 960px) {
-
     /* Necesitamos que el panel pueda salir del chat-container sin ser
        recortado. chat-container tiene overflow:hidden globalmente para que
        los paneles internos (lock, game, dm…) no desborden. Solo relajamos
@@ -573,8 +572,7 @@ body {
     /* En pantalla ancha el panel sale a la derecha en vez de tapar el chat */
     .chat-container.music-sidebar-open .music-panel,
     .chat-container.music-sidebar-open .music-panel.open {
-        display: none;
-        /* reset, lo re-mostramos abajo */
+        display: none; /* reset, lo re-mostramos abajo */
     }
 
     .chat-container.music-sidebar-open .music-panel.open {
@@ -1158,8 +1156,7 @@ html.brightness-dimmed {
     cursor: pointer;
     transition: background 0.15s;
     position: relative;
-    overflow: hidden;
-    /* prevents any child from breaking the row width */
+    overflow: hidden; /* prevents any child from breaking the row width */
 }
 
 .radio-item:hover {
@@ -1189,8 +1186,7 @@ html.brightness-dimmed {
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-width: 0;
-    /* critical: lets flex children shrink below their content size */
+    min-width: 0;   /* critical: lets flex children shrink below their content size */
     overflow: hidden;
 }
 
@@ -1210,21 +1206,10 @@ html.brightness-dimmed {
 }
 
 @keyframes radioNameScroll {
-    0% {
-        transform: translateX(0);
-    }
-
-    25% {
-        transform: translateX(0);
-    }
-
-    75% {
-        transform: translateX(var(--marquee-offset, -50%));
-    }
-
-    100% {
-        transform: translateX(var(--marquee-offset, -50%));
-    }
+    0%   { transform: translateX(0); }
+    25%  { transform: translateX(0); }
+    75%  { transform: translateX(var(--marquee-offset, -50%)); }
+    100% { transform: translateX(var(--marquee-offset, -50%)); }
 }
 
 .radio-meta {
@@ -1265,7 +1250,7 @@ html.brightness-dimmed {
     height: 24px;
     border-radius: 50%;
     border: none;
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255,255,255,0.07);
     color: #ccc;
     font-size: 0.78em;
     cursor: pointer;
@@ -1278,13 +1263,25 @@ html.brightness-dimmed {
 }
 
 .track-quick-btn:hover {
-    background: rgba(62, 207, 142, 0.22);
+    background: rgba(62,207,142,0.22);
     color: #3ecf8e;
 }
 
 .track-quick-btn.danger:hover {
-    background: rgba(255, 77, 77, 0.18);
+    background: rgba(255,77,77,0.18);
     color: #ff4d4d;
+}
+
+/* Cache button: always slightly visible so user can see offline status
+   without having to hover (the ✅ icon is informational at a glance) */
+.track-cache-btn {
+    opacity: 1 !important; /* override the parent opacity:0 on non-hover */
+    background: transparent !important;
+    font-size: 0.82em !important;
+}
+
+.radio-item:not(:hover) .track-cache-btn {
+    opacity: 0.35;  /* dimmed but visible when row is not hovered */
 }
 
 /* ── MODO SELECCIÓN ────────────────────────────────────────────────────
@@ -1303,8 +1300,7 @@ html.brightness-dimmed {
 }
 
 .selection-mode-toggle {
-    display: none;
-    /* JS lo muestra salvo en la pestaña de Radio */
+    display: none; /* JS lo muestra salvo en la pestaña de Radio */
     align-self: flex-start;
     margin: 6px 10px 0 10px;
     background: transparent;
@@ -1319,11 +1315,11 @@ html.brightness-dimmed {
 }
 
 .selection-mode-toggle:hover {
-    background: rgba(62, 207, 142, 0.1);
+    background: rgba(62,207,142,0.1);
 }
 
 .selection-mode-toggle.active {
-    background: rgba(62, 207, 142, 0.18);
+    background: rgba(62,207,142,0.18);
     border-color: #3ecf8e;
     color: #fff;
 }
@@ -1332,7 +1328,7 @@ html.brightness-dimmed {
 .album-picker-modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0,0,0,0.7);
     z-index: 10020;
     display: flex;
     align-items: center;
@@ -1349,7 +1345,7 @@ html.brightness-dimmed {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.7);
 }
 
 .album-picker-title {
@@ -1385,14 +1381,14 @@ html.brightness-dimmed {
     cursor: pointer;
     font-size: 0.84em;
     color: #ddd;
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255,255,255,0.04);
     transition: background 0.12s;
     border: none;
     text-align: left;
 }
 
 .album-picker-option:hover {
-    background: rgba(62, 207, 142, 0.18);
+    background: rgba(62,207,142,0.18);
     color: #fff;
 }
 
@@ -1468,13 +1464,8 @@ html.brightness-dimmed {
 }
 
 @keyframes marqueeScroll {
-    0% {
-        transform: translateX(0);
-    }
-
-    100% {
-        transform: translateX(-100%);
-    }
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
 }
 
 .volume-control {
@@ -1720,14 +1711,11 @@ html.brightness-dimmed {
         transform: translateY(0);
     }
 }
-
 /* ── PANEL DE JUEGOS ─────────────────────────────────────────────────── */
 .game-panel {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
     background: var(--bg-container);
     z-index: 450;
     display: flex;
@@ -1771,7 +1759,7 @@ html.brightness-dimmed {
 }
 
 .game-card {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255,255,255,0.04);
     border: 1px solid #333;
     border-radius: 10px;
     padding: 12px 8px;
@@ -1785,12 +1773,12 @@ html.brightness-dimmed {
 }
 
 .game-card:hover {
-    background: rgba(62, 207, 142, 0.12);
+    background: rgba(62,207,142,0.12);
     border-color: #3ecf8e;
 }
 
 .game-card.active {
-    background: rgba(62, 207, 142, 0.2);
+    background: rgba(62,207,142,0.2);
     border-color: #3ecf8e;
 }
 
@@ -1817,7 +1805,7 @@ html.brightness-dimmed {
     flex: 1;
     min-height: 0;
     position: relative;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255,255,255,0.05);
 }
 
 .game-frame-wrap iframe {
@@ -1973,7 +1961,7 @@ html.brightness-dimmed {
 .album-vis-badge.public {
     color: #3ecf8e;
     border-color: #3ecf8e;
-    background: rgba(62, 207, 142, 0.1);
+    background: rgba(62,207,142,0.1);
 }
 
 .album-vis-badge.private {
@@ -2000,7 +1988,7 @@ html.brightness-dimmed {
     align-items: center;
     gap: 6px;
     padding: 7px 10px;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0,0,0,0.6);
     border-top: 1px solid #3ecf8e;
     flex-shrink: 0;
     flex-wrap: wrap;
@@ -2015,7 +2003,7 @@ html.brightness-dimmed {
 }
 
 .bulk-share-bar button {
-    background: rgba(255, 255, 255, 0.07);
+    background: rgba(255,255,255,0.07);
     color: #ddd;
     border: 1px solid #444;
     border-radius: 12px;
@@ -2028,25 +2016,25 @@ html.brightness-dimmed {
 }
 
 .bulk-share-bar button:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255,255,255,0.14);
 }
 
 #bulkSharePublicBtn {
     color: #3ecf8e;
     border-color: #3ecf8e;
-    background: rgba(62, 207, 142, 0.1);
+    background: rgba(62,207,142,0.1);
 }
 
 #bulkSharePrivateBtn {
     color: #ff8c42;
     border-color: #ff8c42;
-    background: rgba(255, 140, 66, 0.08);
+    background: rgba(255,140,66,0.08);
 }
 
 #bulkMoveAlbumBtn {
     color: #a78bfa;
     border-color: #a78bfa;
-    background: rgba(167, 139, 250, 0.08);
+    background: rgba(167,139,250,0.08);
 }
 
 #bulkShareCancelBtn {
