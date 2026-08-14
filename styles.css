@@ -1892,10 +1892,7 @@ html.brightness-dimmed {
     gap: 8px;
     padding: 10px 4px 5px 4px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    position: sticky;
-    top: 0;
     background: var(--bg-preview);
-    z-index: 2;
     cursor: pointer;
 }
 
@@ -2082,10 +2079,21 @@ html.brightness-dimmed {
         font-size: 0.76em;
     }
 
-    /* En espacio reducido, el slider de volumen sobra: solo queda el ícono
-       para silenciar/activar, que ya cumple la función esencial. */
+    /* En espacio reducido, el slider de volumen se colapsa por defecto
+       (ancho 0) para no ocupar lugar, pero sigue estando ahí: al tocar el
+       ícono 🔊/🔇 se expande (ver toggleVolumeExpanded en music.js), no
+       desaparece por completo como antes. */
     .volume-control input[type="range"] {
-        display: none;
+        width: 0;
+        opacity: 0;
+        padding: 0;
+        margin: 0;
+        transition: width 0.2s ease, opacity 0.2s ease;
+    }
+
+    .volume-control.volume-expanded input[type="range"] {
+        width: 60px;
+        opacity: 1;
     }
 
     .music-progress-bar {
@@ -2109,5 +2117,35 @@ html.brightness-dimmed {
     .music-tab {
         font-size: 0.7em;
         padding: 4px 2px;
+    }
+
+    /* En ventanas bajas, la lista de canciones ya NO scrollea "adentro" en
+       una caja chiquita separada del resto de la página — eso era confuso
+       (dos scrolls anidados). Ahora crece con su contenido real y es la
+       PÁGINA (body) la que baja, dando un panorama completo de una sola
+       pasada. .music-panel también se deja crecer en vez de recortarse. */
+    .music-panel {
+        overflow: visible;
+        position: static !important;
+        height: auto !important;
+        border-radius: 0 0 12px 12px;
+    }
+
+    .radio-results {
+        flex: none;
+        overflow-y: visible;
+    }
+
+    /* Con .music-panel ahora "en flujo" (no superpuesto), hay que ocultar
+       explícitamente lo que había detrás (mensajes, formulario, etc.) para
+       que no aparezcan mezclados debajo de la lista de música. */
+    .chat-container.music-panel-open .chat-messages,
+    .chat-container.music-panel-open .chat-form,
+    .chat-container.music-panel-open .preview-container,
+    .chat-container.music-panel-open .media-panel,
+    .chat-container.music-panel-open .load-more-bar,
+    .chat-container.music-panel-open .game-panel,
+    .chat-container.music-panel-open .dm-panel {
+        display: none !important;
     }
 }
