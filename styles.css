@@ -1284,6 +1284,44 @@ html.brightness-dimmed {
     opacity: 0.35;  /* dimmed but visible when row is not hovered */
 }
 
+/* ── OFFLINE CACHE INFO BAR ── */
+.cache-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    font-size: 0.72em;
+    color: #888;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.cache-clear-btn {
+    background: rgba(255, 77, 77, 0.1);
+    border: 1px solid #ff4d4d;
+    border-radius: 12px;
+    padding: 3px 10px;
+    font-size: 0.9em;
+    cursor: pointer;
+    color: #ff4d4d;
+}
+
+.cache-clear-btn:hover {
+    background: rgba(255, 77, 77, 0.2);
+}
+
+/* Cache button: always slightly visible so user can see offline status
+   without having to hover (the ✅ icon is informational at a glance) */
+.track-cache-btn {
+    opacity: 1 !important; /* override the parent opacity:0 on non-hover */
+    background: transparent !important;
+    font-size: 0.82em !important;
+}
+
+.radio-item:not(:hover) .track-cache-btn {
+    opacity: 0.35;  /* dimmed but visible when row is not hovered */
+}
+
 /* ── MODO SELECCIÓN ────────────────────────────────────────────────────
    Los checkboxes (de canción individual y de "todo el álbum") están
    ocultos por defecto — la lista se ve limpia, igual que "Música

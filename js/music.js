@@ -5,6 +5,80 @@
 //    (🌐) en "Mi música", visibles para todo el chat.
 // 3) Mi música: tus propias canciones subidas (privadas por defecto).
 
+// ── TOAST NOTIFICATIONS ────────────────────────────────────────────────────
+// Non-blocking flash messages that auto-dismiss. Max 3 visible at once;
+// older ones are removed when the limit is exceeded.
+const TOAST_MAX   = 3;
+const TOAST_MS    = 3800; // auto-dismiss after this many ms
+let   _toastWrap  = null;
+
+function getToastWrap() {
+    if (_toastWrap) return _toastWrap;
+    _toastWrap = document.createElement('div');
+    _toastWrap.id = 'musicToastWrap';
+    _toastWrap.style.cssText = [
+        'position:fixed',
+        'bottom:80px',
+        'left:50%',
+        'transform:translateX(-50%)',
+        'z-index:19999',
+        'display:flex',
+        'flex-direction:column',
+        'align-items:center',
+        'gap:6px',
+        'pointer-events:none',
+        'width:320px',
+        'max-width:92vw',
+    ].join(';');
+    document.body.appendChild(_toastWrap);
+    return _toastWrap;
+}
+
+function showToast(msg, type) {
+    // type: 'error' | 'ok' | 'info' | 'warn'
+    const wrap = getToastWrap();
+
+    // Trim oldest if at limit
+    while (wrap.children.length >= TOAST_MAX) wrap.removeChild(wrap.firstChild);
+
+    const toast = document.createElement('div');
+    const colors = {
+        error: { bg: 'rgba(40,0,0,0.92)', border: '#ff4d4d', icon: '⚠️' },
+        ok:    { bg: 'rgba(0,30,20,0.92)', border: '#3ecf8e', icon: '✅' },
+        warn:  { bg: 'rgba(40,25,0,0.92)', border: '#f59e0b', icon: '⚡' },
+        info:  { bg: 'rgba(15,15,25,0.92)', border: '#666',   icon: 'ℹ️' },
+    };
+    const c = colors[type] || colors.info;
+    toast.style.cssText = [
+        'background:' + c.bg,
+        'border:1px solid ' + c.border,
+        'border-radius:10px',
+        'padding:9px 14px',
+        'font-size:0.82em',
+        'color:#e8e8e8',
+        'line-height:1.4',
+        'pointer-events:auto',
+        'cursor:pointer',
+        'max-width:100%',
+        'box-sizing:border-box',
+        'box-shadow:0 4px 18px rgba(0,0,0,0.55)',
+        'animation:toastIn 0.2s ease',
+        'word-break:break-word',
+    ].join(';');
+    toast.innerHTML = '<span style="margin-right:6px">' + c.icon + '</span>' + msg;
+
+    let timer = setTimeout(() => dismissToast(toast), TOAST_MS);
+    toast.onclick = () => { clearTimeout(timer); dismissToast(toast); };
+    wrap.appendChild(toast);
+}
+
+function dismissToast(toast) {
+    toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+    toast.style.opacity    = '0';
+    toast.style.transform  = 'translateY(6px)';
+    setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 260);
+}
+
 const RADIO_API = 'https://de1.api.radio-browser.info/json/stations/search';
 
 // ══════════════════════════════════════════════════════════════════════
@@ -93,6 +167,81 @@ async function refreshCachedIds() {
     _cachedTrackIds = await cacheGetAllKeys();
 }
 
+// ── METADATA DE CANCIONES OFFLINE (localStorage) ──────────────────────────
+// El caché de IndexedDB solo guarda el audio (blob) por track.id. Para poder
+// mostrar la LISTA de "Mi música" sin conexión (nombre, álbum, etc.) también
+// guardamos una copia liviana de los metadatos en localStorage cada vez que
+// se descarga una canción.
+const OFFLINE_META_KEY = 'offlineTracksMeta';
+
+function getOfflineTracksMeta() {
+    try {
+        return JSON.parse(localStorage.getItem(OFFLINE_META_KEY) || '{}');
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveOfflineTrackMeta(track) {
+    const meta = getOfflineTracksMeta();
+    meta[track.id] = {
+        id: track.id,
+        file_name: track.file_name,
+        display_name: track.display_name,
+        album: track.album || null,
+        is_public: !!track.is_public,
+        user_id: track.user_id,
+        created_at: track.created_at || null,
+    };
+    localStorage.setItem(OFFLINE_META_KEY, JSON.stringify(meta));
+}
+
+function removeOfflineTrackMeta(trackId) {
+    const meta = getOfflineTracksMeta();
+    delete meta[trackId];
+    localStorage.setItem(OFFLINE_META_KEY, JSON.stringify(meta));
+}
+
+// true cuando el navegador reporta no tener conexión. OJO: esto solo detecta
+// si el adaptador de red está prendido/apagado — si estás "conectado" a una
+// red que en realidad no tiene salida a internet, navigator.onLine sigue
+// devolviendo true. Por eso NO nos apoyamos solo en esto (ver withTimeout).
+function isOffline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function looksLikeNetworkError(err) {
+    if (!err) return false;
+    if (err.__isTimeout) return true; // marcado por withTimeout()
+    if (err instanceof TypeError) return true; // fetch() fallido = TypeError en casi todos los navegadores
+    const msg = (err.message || String(err) || '').toLowerCase();
+    return msg.includes('failed to fetch') || msg.includes('networkerror') ||
+        msg.includes('load failed') || msg.includes('network request failed') ||
+        msg.includes('err_internet_disconnected') || msg.includes('err_network') ||
+        msg.includes('err_connection') || msg.includes('timed out') ||
+        msg.includes('timeout') || msg.includes('offline') ||
+        isOffline();
+}
+
+// Corre una promesa con un límite de tiempo. Si no hay internet real (aunque
+// el adaptador diga que sí hay red), fetch/Supabase pueden quedarse
+// "colgados" esperando resolver DNS en vez de fallar rápido — sin esto, la
+// pantalla se quedaba en "Cargando..." para siempre y nunca llegaba a
+// mostrar el aviso ni el fallback offline.
+function withTimeout(promise, ms = 6000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            const err = new Error('timeout');
+            err.__isTimeout = true;
+            reject(err);
+        }, ms);
+        promise.then(
+            (val) => { clearTimeout(timer); resolve(val); },
+            (err) => { clearTimeout(timer); reject(err); }
+        );
+    });
+}
+
 async function cacheTrack(track, iconEl) {
     if (iconEl) { iconEl.textContent = '\u23F3'; iconEl.title = 'Descargando...'; }
     try {
@@ -101,18 +250,21 @@ async function cacheTrack(track, iconEl) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const blob = await resp.blob();
         await cachePut(track.id, blob);
+        saveOfflineTrackMeta(track);
         _cachedTrackIds[track.id] = true;
         if (iconEl) { iconEl.textContent = '\u2705'; iconEl.title = 'Disponible offline — clic para quitar'; }
+        showToast('Canción disponible offline', 'ok');
     } catch (err) {
         console.error('Error al cachear:', err);
         if (iconEl) { iconEl.textContent = '\uD83D\uDCE5'; iconEl.title = 'Guardar para offline'; }
-        alert('No se pudo descargar: ' + err.message);
+        showToast('No se pudo descargar: ' + err.message, 'error');
     }
 }
 
 async function uncacheTrack(trackId, iconEl) {
     await cacheDelete(trackId);
     delete _cachedTrackIds[trackId];
+    removeOfflineTrackMeta(trackId);
     if (iconEl) { iconEl.textContent = '\uD83D\uDCE5'; iconEl.title = 'Guardar para offline'; }
 }
 
@@ -127,7 +279,7 @@ async function getPlaybackUrl(track) {
     const signedUrl = await getSignedUrl(track.file_name);
     // Background cache after download starts (fire and forget)
     fetch(signedUrl).then(r => r.ok ? r.blob() : null).then(blob => {
-        if (blob) cachePut(track.id, blob).then(() => { _cachedTrackIds[track.id] = true; updateCacheIconForTrack(track.id); });
+        if (blob) cachePut(track.id, blob).then(() => { _cachedTrackIds[track.id] = true; saveOfflineTrackMeta(track); updateCacheIconForTrack(track.id); });
     }).catch(() => {});
     return { url: signedUrl, fromCache: false };
 }
@@ -325,10 +477,6 @@ if (progressSlider) {
 }
 
 // --- MEDIA SESSION API ---
-// Conecta los controles nativos del sistema/navegador (la ventanita de medios
-// que muestra Windows/Chrome con play, pausa, siguiente y anterior) con
-// nuestro propio reproductor. Sin esto, esos botones del sistema no hacen
-// nada porque no saben qué función de nuestro código deben llamar.
 if ('mediaSession' in navigator) {
     navigator.mediaSession.setActionHandler('play', () => {
         if (audioPlayer && audioPlayer.src) {
@@ -366,8 +514,6 @@ function updateMediaSessionMetadata(title, subtitle, artworkUrl) {
 }
 
 // --- CAMBIO DE PESTAÑA (Radio / Canciones / Mi música) ---
-// Filtro de texto activo para "Música compartida" / "Mi música" (búsqueda
-// por nombre de canción o álbum, en cliente sobre lo ya cargado).
 let musicSearchFilter = '';
 
 function setMusicMode(mode) {
@@ -383,9 +529,6 @@ function setMusicMode(mode) {
     if (tabShared) tabShared.classList.toggle('active', mode === 'shared');
     if (tabUploads) tabUploads.classList.toggle('active', mode === 'uploads');
 
-    // El buscador ahora sirve en las 3 pestañas: en radio busca estaciones en
-    // vivo (Radio Browser); en "Música compartida"/"Mi música" filtra por
-    // nombre de canción o álbum sobre lo ya cargado.
     if (musicSearchRow) musicSearchRow.style.display = 'flex';
 
     if (musicUploadRow) musicUploadRow.style.display = mode === 'uploads' ? 'flex' : 'none';
@@ -407,9 +550,6 @@ function setMusicMode(mode) {
     }
 }
 
-// Aclara qué formatos acepta el input de subida y por qué podría fallar un
-// archivo, pero sin ensuciar el panel: aparece como un link chiquito
-// "ℹ️ ¿Qué formatos acepta?" que despliega el detalle solo si lo tocás.
 function ensureUploadFormatHint() {
     let wrap = document.getElementById('uploadFormatHint');
     if (wrap) return wrap;
@@ -440,9 +580,6 @@ function ensureUploadFormatHint() {
 }
 
 // --- MODO SELECCIÓN (checkboxes ocultos por defecto) ---
-// Los checkboxes de selección múltiple solo se ven cuando el usuario activa
-// este modo explícitamente con un botón; el resto del tiempo la lista se ve
-// limpia, igual que "Música compartida".
 let selectionModeOn = false;
 
 function ensureSelectionToggleBtn() {
@@ -477,10 +614,6 @@ if (tabShared) tabShared.addEventListener('click', () => setMusicMode('shared'))
 if (tabUploads) tabUploads.addEventListener('click', () => setMusicMode('uploads'));
 
 // --- MI MÚSICA ---
-// Usa la tabla music_tracks para metadatos (visibilidad) y el bucket
-// PRIVADO music-uploads. URLs firmadas (createSignedUrl, 1h) para acceso
-// seguro: canciones privadas solo las reproduce su dueño; públicas las ven
-// todos los usuarios autenticados (RLS en music_tracks lo controla).
 const MUSIC_UPLOADS_BUCKET = 'music-uploads';
 const SIGNED_URL_EXPIRY = 3600;
 
@@ -495,9 +628,11 @@ function sanitizeFileName(rawName) {
 }
 
 async function getSignedUrl(fileName) {
-    const { data, error } = await supabaseClient.storage
-        .from(MUSIC_UPLOADS_BUCKET)
-        .createSignedUrl(fileName, SIGNED_URL_EXPIRY);
+    const { data, error } = await withTimeout(
+        supabaseClient.storage
+            .from(MUSIC_UPLOADS_BUCKET)
+            .createSignedUrl(fileName, SIGNED_URL_EXPIRY)
+    );
     if (error) throw error;
     return data.signedUrl;
 }
@@ -505,12 +640,18 @@ async function getSignedUrl(fileName) {
 async function loadUploadedTracks() {
     if (!radioResults || !currentUserId) return;
     radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando tu música...</div>';
+
+    // Refresh in-memory cache map first — se necesita tanto si hay red como si no.
+    await refreshCachedIds();
+
     try {
-        const { data, error } = await supabaseClient
-            .from('music_tracks')
-            .select('*')
-            .eq('user_id', currentUserId)
-            .order('created_at', { ascending: false });
+        const { data, error } = await withTimeout(
+            supabaseClient
+                .from('music_tracks')
+                .select('*')
+                .eq('user_id', currentUserId)
+                .order('created_at', { ascending: false })
+        );
         if (error) throw error;
 
         if (!data || data.length === 0) {
@@ -518,8 +659,6 @@ async function loadUploadedTracks() {
             currentResultsList = [];
             return;
         }
-        // Refresh in-memory cache map so icons render correctly
-        await refreshCachedIds();
 
         const filtered = filterTracksBySearch(data);
         if (filtered.length === 0) {
@@ -531,8 +670,46 @@ async function loadUploadedTracks() {
         updateCacheInfoBar();
     } catch (err) {
         console.error('Error al cargar música:', err);
+
+        // Sin conexión (o el servidor no responde): en vez de un error seco,
+        // mostramos lo que sí tenemos guardado localmente para escuchar offline.
+        if (looksLikeNetworkError(err)) {
+            renderOfflineTracksFallback();
+            return;
+        }
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar. Revisa la tabla music_tracks y el bucket music-uploads.</div>';
     }
+}
+
+// Dibuja la lista usando solo lo que hay guardado offline (localStorage +
+// IndexedDB), para cuando no hay conexión y Supabase no responde.
+function renderOfflineTracksFallback() {
+    const meta = getOfflineTracksMeta();
+    const ownCached = Object.values(meta).filter(t => !currentUserId || t.user_id === currentUserId);
+
+    if (ownCached.length === 0) {
+        radioResults.innerHTML = '<div class="radio-status">\uD83D\uDCF6 Sin conexión y no hay canciones guardadas offline todavía.</div>';
+        currentResultsList = [];
+        updateCacheInfoBar();
+        return;
+    }
+
+    const filtered = filterTracksBySearch(ownCached);
+    if (filtered.length === 0) {
+        radioResults.innerHTML = '<div class="radio-status">Sin resultados para esa búsqueda (modo offline).</div>';
+        currentResultsList = [];
+        return;
+    }
+
+    renderTracksGrouped(filtered);
+    updateCacheInfoBar();
+
+    // Aviso arriba de la lista indicando que se está en modo offline
+    const notice = document.createElement('div');
+    notice.className = 'radio-status';
+    notice.style.cssText = 'padding:6px 10px;opacity:0.8;';
+    notice.textContent = '\uD83D\uDCF6 Sin conexión — mostrando solo canciones guardadas offline';
+    radioResults.insertBefore(notice, radioResults.firstChild);
 }
 
 // Shows a small info strip at the bottom of the panel: total cached size + clear-all button.
@@ -541,8 +718,7 @@ async function updateCacheInfoBar() {
     if (!bar) {
         bar = document.createElement('div');
         bar.id = 'cacheInfoBar';
-        bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 12px;' +
-            'font-size:0.72em;color:#888;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;';
+        bar.className = 'cache-info-bar';
         if (musicPanel) musicPanel.appendChild(bar);
     }
 
@@ -563,9 +739,8 @@ async function updateCacheInfoBar() {
     bar.appendChild(label);
 
     const clearBtn = document.createElement('button');
+    clearBtn.className = 'cache-clear-btn';
     clearBtn.textContent = '\uD83D\uDDD1\uFE0F Limpiar caché';
-    clearBtn.style.cssText = 'background:rgba(255,77,77,0.1);border:1px solid #ff4d4d;' +
-        'border-radius:12px;padding:3px 10px;font-size:0.9em;cursor:pointer;color:#ff4d4d;';
     clearBtn.onclick = async () => {
         if (!confirm('\u00BFEliminar todas las canciones guardadas offline?')) return;
         const db = await openAudioCacheDB();
@@ -575,26 +750,24 @@ async function updateCacheInfoBar() {
             tx.oncomplete = resolve;
         });
         _cachedTrackIds = {};
+        showToast('Caché offline limpiada', 'ok');
         // Re-render so icons update
         if (currentMusicMode === 'uploads') loadUploadedTracks();
     };
     bar.appendChild(clearBtn);
 }
 
-// Música compartida: todas las canciones que CUALQUIER usuario marcó como
-// públicas (🌐), sin importar quién las subió. La RLS de music_tracks ya
-// permite ver filas con is_public = true a cualquier usuario autenticado;
-// aquí se filtra explícitamente para no traer de paso las privadas propias
-// (que si viven mezcladas se ven en la pestaña "Mi música").
 async function loadSharedTracks() {
     if (!radioResults) return;
     radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando música compartida...</div>';
     try {
-        const { data, error } = await supabaseClient
-            .from('music_tracks')
-            .select('*')
-            .eq('is_public', true)
-            .order('created_at', { ascending: false });
+        const { data, error } = await withTimeout(
+            supabaseClient
+                .from('music_tracks')
+                .select('*')
+                .eq('is_public', true)
+                .order('created_at', { ascending: false })
+        );
         if (error) throw error;
         if (!data || data.length === 0) {
             radioResults.innerHTML = '<div class="radio-status">Todavía nadie compartió música públicamente. Sube una canción y márcala con 🌐 en "Mi música".</div>';
@@ -610,12 +783,15 @@ async function loadSharedTracks() {
         renderTracksGrouped(filtered);
     } catch (err) {
         console.error('Error al cargar música compartida:', err);
+        if (looksLikeNetworkError(err)) {
+            radioResults.innerHTML = '<div class="radio-status">\uD83D\uDCF6 Sin conexión. La música compartida de otros usuarios necesita internet — ve a "Mi música" para escuchar lo que tengas guardado offline.</div>';
+            currentResultsList = [];
+            return;
+        }
         radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar la música compartida.</div>';
     }
 }
 
-// Filtra un array de canciones por musicSearchFilter (nombre o álbum),
-// insensible a mayúsculas. Si no hay filtro activo, devuelve todo tal cual.
 function filterTracksBySearch(tracks) {
     if (!musicSearchFilter) return tracks;
     const term = musicSearchFilter;
@@ -625,8 +801,6 @@ function filterTracksBySearch(tracks) {
     );
 }
 
-// Refresca el <datalist> de sugerencias de álbum con los nombres que ya usó
-// este usuario, para poder reutilizar el mismo nombre al subir más canciones.
 function updateAlbumSuggestions(tracks) {
     if (!albumSuggestions) return;
     const names = [...new Set(
@@ -635,12 +809,8 @@ function updateAlbumSuggestions(tracks) {
     albumSuggestions.innerHTML = names.map(n => `<option value="${n.replace(/"/g, '&quot;')}"></option>`).join('');
 }
 
-const NO_ALBUM_KEY = '\u0000__sin_album__'; // clave interna, nunca choca con un nombre real de álbum
+const NO_ALBUM_KEY = '\u0000__sin_album__';
 
-// Agrupa las canciones por álbum (las sin álbum quedan en un grupo aparte al
-// final) y dibuja cada grupo con su propio encabezado: nombre, cantidad de
-// canciones, y — solo si el grupo tiene canciones tuyas — un botón para
-// compartir/ocultar el álbum COMPLETO de una sola vez.
 function renderTracksGrouped(tracks) {
     radioResults.innerHTML = '';
     selectedTrackIds.clear();
@@ -653,21 +823,19 @@ function renderTracksGrouped(tracks) {
     }
     currentResultsList = tracks;
 
-    const groups = new Map(); // albumName (o NO_ALBUM_KEY) -> tracks[]
+    const groups = new Map();
     tracks.forEach(t => {
         const key = (t.album && t.album.trim()) ? t.album.trim() : NO_ALBUM_KEY;
         if (!groups.has(key)) groups.set(key, []);
         groups.get(key).push(t);
     });
 
-    // Álbumes con nombre primero (alfabético), "Sin álbum" siempre al final
     const sortedKeys = [...groups.keys()].sort((a, b) => {
         if (a === NO_ALBUM_KEY) return 1;
         if (b === NO_ALBUM_KEY) return -1;
         return a.localeCompare(b);
     });
 
-    // Colapsar todos los álbumes por defecto la primera vez que se cargan.
     sortedKeys.forEach(k => {
         if (!collapsedAlbums.has(k)) collapsedAlbums.add(k);
     });
@@ -678,9 +846,6 @@ function renderTracksGrouped(tracks) {
         const ownTracksInGroup = groupTracks.filter(t => t.user_id === currentUserId);
         const isCollapsed = collapsedAlbums.has(albumKey);
 
-        // Cada álbum vive en su propio contenedor: header (sticky) + lista
-        // de canciones que se puede colapsar. Así un álbum con 60+ canciones
-        // no se siente como un solo bloque gigante pegado al siguiente.
         const groupWrap = document.createElement('div');
         groupWrap.className = 'album-group';
 
@@ -697,7 +862,6 @@ function renderTracksGrouped(tracks) {
         titleSpan.textContent = `${isNoAlbum ? '📁 Sin álbum' : '💿 ' + albumKey} (${groupTracks.length})`;
         header.appendChild(titleSpan);
 
-        // Checkbox "seleccionar todo el álbum" — solo si hay canciones propias
         if (ownTracksInGroup.length > 0) {
             const selectAll = document.createElement('input');
             selectAll.type = 'checkbox';
@@ -752,11 +916,8 @@ function renderTracksGrouped(tracks) {
     updatePlayingHighlight();
 }
 
-// Activa el marquee en un elemento .radio-name si su texto desborda el contenedor.
-// Se llama después de insertar el item en el DOM (necesita layout calculado).
 function activateMarqueeIfOverflows(nameEl) {
     if (!nameEl) return;
-    // Necesita estar en el DOM para medir; si no, no hace nada.
     requestAnimationFrame(() => {
         if (nameEl.scrollWidth > nameEl.clientWidth) {
             const overflow = nameEl.scrollWidth - nameEl.clientWidth;
@@ -766,10 +927,7 @@ function activateMarqueeIfOverflows(nameEl) {
     });
 }
 
-// Friendly album picker modal — replaces the old prompt()-based editTrackAlbum.
-// trackIds: array of track UUIDs to move. currentAlbum: string | null (for highlight).
 function openAlbumPicker(trackIds, currentAlbum) {
-    // Collect all existing album names from the currently loaded list
     const existingAlbums = [...new Set(
         (currentResultsList || []).map(t => (t.album || '').trim()).filter(Boolean)
     )].sort((a, b) => a.localeCompare(b));
@@ -797,7 +955,6 @@ function openAlbumPicker(trackIds, currentAlbum) {
     const list = document.createElement('div');
     list.className = 'album-picker-list';
 
-    // "Sin álbum" option
     const noAlbumOpt = document.createElement('button');
     noAlbumOpt.className = 'album-picker-option' + (!currentAlbum ? ' current' : '');
     noAlbumOpt.innerHTML = '<span>📁</span><span>Sin álbum</span>';
@@ -814,7 +971,6 @@ function openAlbumPicker(trackIds, currentAlbum) {
 
     box.appendChild(list);
 
-    // "Create new album" row
     const newRow = document.createElement('div');
     newRow.className = 'album-picker-new-row';
     const newInput = document.createElement('input');
@@ -853,7 +1009,6 @@ async function applyAlbumMove(trackIds, albumValue, modal) {
             .update({ album: albumValue })
             .in('id', trackIds);
         if (error) throw error;
-        // Update in-memory objects so grouping reflects change
         (currentResultsList || []).forEach(t => {
             if (trackIds.includes(t.id)) t.album = albumValue;
         });
@@ -861,12 +1016,10 @@ async function applyAlbumMove(trackIds, albumValue, modal) {
         if (currentMusicMode === 'shared') loadSharedTracks();
         else loadUploadedTracks();
     } catch (err) {
-        alert('No se pudo mover: ' + err.message);
+        showToast('No se pudo mover: ' + err.message, 'error');
     }
 }
 
-// Cambia is_public para TODAS tus canciones de un álbum de un solo golpe.
-// albumName === null representa el grupo "Sin álbum" (columna album IS NULL).
 async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
     try {
         let query = supabaseClient
@@ -878,24 +1031,16 @@ async function toggleAlbumSharing(albumName, makePublic, ownTracksInGroup) {
         const { error } = await query;
         if (error) throw error;
 
-        // Reflejar el cambio en memoria antes de recargar, por si acaso
         ownTracksInGroup.forEach(t => { t.is_public = makePublic; });
 
-        // Recarga la pestaña actual para reflejar el cambio en pantalla
         if (currentMusicMode === 'shared') loadSharedTracks();
         else loadUploadedTracks();
     } catch (err) {
         console.error('Error al compartir/ocultar álbum:', err);
-        alert('No se pudo actualizar el álbum: ' + err.message);
+        showToast('No se pudo actualizar el álbum: ' + err.message, 'error');
     }
 }
 
-// Draws a single track row using the same clean layout as "Música
-// compartida": icon + name/meta + play, all always visible and nothing
-// else. For your own tracks, three small round action buttons (🌐/🔒, 💿,
-// 🗑️) fade in only on hover, right before the play icon — no dropdown menu.
-// The selection checkbox is hidden unless "Seleccionar varias" is active
-// (see setSelectionMode / .selection-mode on #radioResults).
 function renderTrackItem(track, index) {
     const isMine = track.user_id === currentUserId;
     const item = document.createElement('div');
@@ -903,12 +1048,11 @@ function renderTrackItem(track, index) {
     item.dataset.trackKey = track.file_name;
     item.dataset.trackId = track.id; // used by updateCacheIconForTrack
 
-    // ── Checkbox (own tracks only, hidden unless selection mode is on) ──
     if (isMine) {
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'track-select-checkbox';
-        checkbox.dataset.trackId = track.id; // used by album "select all"
+        checkbox.dataset.trackId = track.id;
         checkbox.checked = selectedTrackIds.has(track.id);
         checkbox.onclick = (e) => e.stopPropagation();
         checkbox.onchange = () => {
@@ -919,14 +1063,12 @@ function renderTrackItem(track, index) {
         item.appendChild(checkbox);
     }
 
-    // ── Visibility icon ────────────────────────────────────────────────
     const visIcon = document.createElement('span');
     visIcon.className = 'radio-icon uploaded-icon';
     visIcon.textContent = track.is_public ? '🌐' : '🔒';
     visIcon.title = track.is_public ? 'Pública' : 'Privada';
     item.appendChild(visIcon);
 
-    // ── Name + meta ────────────────────────────────────────────────────
     const info = document.createElement('div');
     info.className = 'radio-info';
 
@@ -949,7 +1091,6 @@ function renderTrackItem(track, index) {
 
     item.appendChild(info);
 
-    // ── Quick actions (own tracks only, fade in on hover via CSS) ───────
     if (isMine) {
         const actions = document.createElement('div');
         actions.className = 'track-quick-actions';
@@ -969,7 +1110,7 @@ function renderTrackItem(track, index) {
                 track.is_public = newPublic;
                 const fresh = renderTrackItem(track, index);
                 item.replaceWith(fresh);
-            } catch (err) { alert('Error: ' + err.message); }
+            } catch (err) { showToast('Error: ' + err.message, 'error'); }
         };
 
         const albumBtn = document.createElement('button');
@@ -991,12 +1132,14 @@ function renderTrackItem(track, index) {
                 await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
                 const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
                 if (error) throw error;
+                await cacheDelete(track.id).catch(() => {});
+                delete _cachedTrackIds[track.id];
                 selectedTrackIds.delete(track.id);
                 item.remove();
                 const idx = currentResultsList.findIndex(t => t.id === track.id);
                 if (idx !== -1) currentResultsList.splice(idx, 1);
                 updateBulkActionBar();
-            } catch (err) { alert('No se pudo eliminar: ' + err.message); }
+            } catch (err) { showToast('No se pudo eliminar: ' + err.message, 'error'); }
         };
 
         // Cache button — toggles offline availability
@@ -1010,6 +1153,7 @@ function renderTrackItem(track, index) {
             e.stopPropagation();
             if (_cachedTrackIds[track.id]) {
                 await uncacheTrack(track.id, cacheBtn);
+                showToast('Quitada del almacenamiento offline', 'info');
             } else {
                 await cacheTrack(track, cacheBtn);
             }
@@ -1022,7 +1166,6 @@ function renderTrackItem(track, index) {
         item.appendChild(actions);
     }
 
-    // ── Play icon (always visible) ───────────────────────────────────────
     const playIcon = document.createElement('span');
     playIcon.className = 'radio-play-icon';
     playIcon.textContent = '▶';
@@ -1034,8 +1177,6 @@ function renderTrackItem(track, index) {
     return item;
 }
 
-// --- BARRA DE ACCIÓN MASIVA (compartir/ocultar varias canciones a la vez) ---
-// Se construye una sola vez y se muestra/oculta según haya algo seleccionado.
 function ensureBulkActionBar() {
     let bar = document.getElementById('bulkShareBar');
     if (bar) return bar;
@@ -1089,7 +1230,7 @@ async function bulkSetPublic(makePublic) {
         else loadUploadedTracks();
     } catch (err) {
         console.error('Error al actualizar en lote:', err);
-        alert('No se pudo actualizar: ' + err.message);
+        showToast('No se pudo actualizar: ' + err.message, 'error');
     }
 }
 
@@ -1147,16 +1288,11 @@ async function playUploadedTrack(track, index = -1) {
                 return;
             }
         }
-        alert('No se pudo acceder al archivo: ' + err.message);
+        showToast('No se pudo acceder al archivo: ' + err.message, 'error');
     }
 }
 
 
-// Upload: guarda el archivo en el bucket privado + fila en music_tracks
-// Abre un modal de álbum adaptado para la subida (igual que openAlbumPicker
-// pero resuelve una Promise con el álbum elegido en vez de mover tracks
-// existentes). Devuelve null si el usuario elige "Sin álbum" o cancela con ✕.
-// Devuelve false si pulsa "Cancelar subida" (abortar).
 function askAlbumForUpload(fileCount) {
     return new Promise((resolve) => {
         const existingAlbums = [...new Set(
@@ -1228,12 +1364,10 @@ if (uploadMusicInput) {
     uploadMusicInput.addEventListener('change', async () => {
         const files = Array.from(uploadMusicInput.files || []);
         if (files.length === 0) return;
-        if (!currentUserId) { alert('Debes iniciar sesión para subir música.'); return; }
+        if (!currentUserId) { showToast('Debes iniciar sesión para subir música.', 'warn'); return; }
 
-        // Preguntar álbum ANTES de subir
         const albumChoice = await askAlbumForUpload(files.length);
         if (albumChoice === false) {
-            // Usuario canceló la subida
             uploadMusicInput.value = '';
             return;
         }
@@ -1244,8 +1378,6 @@ if (uploadMusicInput) {
         const failed = [];
         const skippedDuplicates = [];
 
-        // Trae de una vez los nombres que este usuario ya tiene subidos, para
-        // no repetir la misma consulta en cada archivo del lote.
         let existingNames = new Set();
         try {
             const { data: existing, error: existingErr } = await supabaseClient
@@ -1258,7 +1390,6 @@ if (uploadMusicInput) {
             );
         } catch (err) {
             console.error('No se pudo verificar canciones existentes:', err);
-            // Si esto falla, se sigue igual sin bloquear la subida por completo.
         }
 
         for (const file of files) {
@@ -1266,19 +1397,11 @@ if (uploadMusicInput) {
                 const displayName = file.name.replace(/\.[^/.]+$/, '');
                 const normalizedName = displayName.trim().toLowerCase();
 
-                // Evita subir la misma canción dos veces (comparando por
-                // nombre, insensible a mayúsculas/espacios). Si ya la tienes,
-                // se salta en vez de duplicarla en la lista.
                 if (existingNames.has(normalizedName)) {
                     skippedDuplicates.push(file.name);
                     continue;
                 }
 
-                // Sufijo aleatorio además del timestamp: subir varios archivos
-                // muy rápido puede repetir Date.now() en el mismo milisegundo,
-                // lo que chocaba nombres de archivo en el bucket y dejaba filas
-                // en music_tracks apuntando a un archivo ya sobrescrito/borrado
-                // ("Object not found" al intentar reproducir).
                 const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
                 const fileName = `${currentUserId}/${uniqueSuffix}_${sanitizeFileName(file.name)}`;
 
@@ -1292,14 +1415,11 @@ if (uploadMusicInput) {
                     .insert([{ user_id: currentUserId, file_name: fileName, display_name: displayName, is_public: false, album: albumValue }]);
                 if (dbErr) throw dbErr;
 
-                // Registra el nombre para detectar duplicados dentro del
-                // mismo lote (ej. seleccionaste el mismo archivo dos veces).
                 existingNames.add(normalizedName);
             } catch (err) {
                 console.error(`Error al subir "${file.name}":`, err);
                 const reason = (err && err.message) ? err.message : 'error desconocido';
                 failed.push(`${file.name} — ${reason}`);
-                // No se corta el lote: sigue con el resto de los archivos.
             }
         }
 
@@ -1310,7 +1430,7 @@ if (uploadMusicInput) {
         if (failed.length > 0) {
             messages.push(`No se pudieron subir ${failed.length} archivo(s):\n${failed.join('\n')}`);
         }
-        if (messages.length > 0) alert(messages.join('\n\n'));
+        messages.forEach(m => showToast(m, m.includes('No se pudo') ? 'error' : 'warn'));
 
         await loadUploadedTracks();
         uploadMusicInput.value = '';
@@ -1328,16 +1448,11 @@ function runSearch(query) {
     }
 }
 
-// --- BÚSQUEDA DE RADIOS ---
 async function searchRadioStations(query) {
     if (!radioResults) return;
     radioResults.innerHTML = '<div class="radio-status">🔎 Buscando estaciones...</div>';
 
     try {
-        // Busca por nombre Y por género/tag a la vez (ej. "rock" encuentra
-        // tanto estaciones llamadas "Rock FM" como estaciones etiquetadas
-        // como género rock), y sube el límite por consulta de 15 a 30 para
-        // traer más resultados en total.
         const [byNameRes, byTagRes] = await Promise.all([
             fetch(`${RADIO_API}?name=${encodeURIComponent(query)}&limit=30&hidebroken=true&order=clickcount&reverse=true`),
             fetch(`${RADIO_API}?tag=${encodeURIComponent(query)}&limit=30&hidebroken=true&order=clickcount&reverse=true`)
@@ -1346,7 +1461,6 @@ async function searchRadioStations(query) {
         const byName = byNameRes.ok ? await byNameRes.json() : [];
         const byTag = byTagRes.ok ? await byTagRes.json() : [];
 
-        // Combina ambas búsquedas sin repetir la misma estación dos veces.
         const seen = new Set();
         const merged = [...byName, ...byTag].filter(station => {
             const key = station.stationuuid || station.url_resolved;
@@ -1436,12 +1550,10 @@ function playRadioStation(station, index = -1) {
     setCurrentTrackTitle(station.name || 'Reproduciendo...');
     updateMediaSessionMetadata(station.name, station.country, station.favicon);
 
-    // Mostrar la barra de reproducción persistente (el panel se queda abierto)
     if (musicPlayerBar) musicPlayerBar.style.display = 'flex';
     repositionMusicPanel();
 }
 
-// Botón de búsqueda
 if (searchMusicBtn) {
     searchMusicBtn.addEventListener('click', () => {
         const query = musicInput.value.trim();
@@ -1453,8 +1565,6 @@ if (searchMusicBtn) {
     });
 }
 
-// Enter en el campo de búsqueda; también filtra en vivo mientras se escribe
-// para "Música compartida" / "Mi música" (no hace falta apretar Enter ahí).
 if (musicInput) {
     musicInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -1474,7 +1584,6 @@ if (musicInput) {
     });
 }
 
-// Play / Pausa manual
 if (playPauseBtn) {
     playPauseBtn.addEventListener('click', () => {
         if (!audioPlayer || !audioPlayer.src) return;
@@ -1490,11 +1599,9 @@ if (playPauseBtn) {
     });
 }
 
-// --- SIGUIENTE / ANTERIOR dentro de la última lista de resultados buscada ---
 function playByIndex(index) {
     if (!currentResultsList || currentResultsList.length === 0) return;
 
-    // Salto circular: del último vuelve al primero, y viceversa
     const total = currentResultsList.length;
     const safeIndex = ((index % total) + total) % total;
     const item = currentResultsList[safeIndex];
@@ -1502,7 +1609,6 @@ function playByIndex(index) {
     if (currentMusicMode === 'radio') {
         playRadioStation(item, safeIndex);
     } else {
-        // 'shared' y 'uploads' comparten la misma forma de track (music_tracks)
         playUploadedTrack(item, safeIndex);
     }
 }
@@ -1521,34 +1627,40 @@ if (prevTrackBtn) {
     });
 }
 
-// Abrir / cerrar panel de radio
-//
-// El panel ya NO es una ventana flotante aparte en pantallas anchas (esa
-// versión tapaba mal y se sentía inconsistente). Ahora es una vista a
-// pantalla completa DENTRO del chat, igual que Juegos o Mensajes Privados:
-// reemplaza temporalmente los mensajes para dar todo el espacio a la lista
-// de música, y solo se cierra manualmente (botón 🎵 del header o la ✕ de
-// aquí adentro) — nunca solo por hacer clic afuera.
 function openMusicPanel() {
     if (!musicPanel) return;
     musicPanel.classList.add('open');
     if (chatContainer) chatContainer.classList.add('music-panel-open');
-    // Eleva la barra de reproducción/progreso SOLO mientras el panel de
-    // música está abierto, para que no tapen el header de Mensajes
-    // Privados ni el de Juegos si el usuario cambia de panel después.
     if (musicPlayerBar) musicPlayerBar.classList.add('raised-above-panels');
     if (musicProgressBar) musicProgressBar.classList.add('raised-above-panels');
     syncSidebarModeOnResize();
     repositionMusicPanel();
-    // Solo fija la pestaña "Mi música" la PRIMERA vez que se abre en esta
-    // sesión. Reaperturas posteriores conservan la pestaña/búsqueda donde
-    // el usuario se quedó (antes se reseteaba a "uploads" cada vez).
     if (!musicPanel.dataset.opened) {
         setMusicMode('uploads');
         musicPanel.dataset.opened = '1';
+    } else if (!currentResultsList || currentResultsList.length === 0) {
+        // Reabriendo el panel después de que la última carga falló (p. ej. se
+        // salió sin conexión) — reintenta en la pestaña donde estaba en vez
+        // de quedarse con la lista vacía/el error viejo en pantalla.
+        setMusicMode(currentMusicMode);
     }
     if (typeof hideDimControls === 'function') hideDimControls('hidden-by-music');
 }
+
+// Si la conexión vuelve mientras el panel de música está abierto, recarga
+// automáticamente la pestaña actual para reemplazar el modo offline por los
+// datos reales (y viceversa: avisa si se pierde la conexión).
+window.addEventListener('online', () => {
+    if (musicPanel && musicPanel.classList.contains('open')) {
+        showToast('Conexión recuperada', 'ok');
+        setMusicMode(currentMusicMode);
+    }
+});
+window.addEventListener('offline', () => {
+    if (musicPanel && musicPanel.classList.contains('open')) {
+        showToast('Sin conexión — modo offline', 'warn');
+    }
+});
 
 function closeMusicPanel() {
     if (!musicPanel) return;
@@ -1562,11 +1674,6 @@ function closeMusicPanel() {
     if (typeof showDimControls === 'function') showDimControls('hidden-by-music');
 }
 
-// Mantiene .music-sidebar-open sincronizado con el ancho REAL de la ventana
-// en todo momento (no solo al abrir el panel). Sin esto, redimensionar el
-// navegador con el panel ya abierto dejaba el layout "a medias" entre modo
-// sidebar (≥960px) y modo pantalla completa, rompiendo los controles de
-// reproducción (music-player-bar / music-progress-bar quedaban mal ubicados).
 function syncSidebarModeOnResize() {
     if (chatContainer && musicPanel && musicPanel.classList.contains('open')) {
         chatContainer.classList.toggle('music-sidebar-open', window.innerWidth >= 960);
@@ -1575,17 +1682,7 @@ function syncSidebarModeOnResize() {
 }
 window.addEventListener('resize', syncSidebarModeOnResize);
 
-// En modo pantalla completa (ventana angosta, sin sidebar), el music-panel
-// usaba top:0 / height:100% y por lo tanto TAPABA la barra de reproducción
-// persistente y la de progreso (que viven arriba, fuera del panel) — se veía
-// la canción sonando resaltada en la lista pero sin ningún control ▶⏮⏭.
-// Esta función recalcula dinámicamente dónde debe empezar el panel: justo
-// debajo de las barras que estén visibles en ese momento. En modo sidebar
-// no aplica (el panel flota aparte, a la derecha, y no las tapa).
 function repositionMusicPanel() {
-    // Mantiene .music-progress-bar pegada justo debajo de .music-player-bar
-    // (position:sticky), sin importar si el panel de música está abierto o
-    // no — así los controles quedan fijos apenas hay música sonando.
     if (chatContainer && musicPlayerBar) {
         const barHeight = musicPlayerBar.style.display !== 'none' ? musicPlayerBar.offsetHeight : 0;
         chatContainer.style.setProperty('--progress-bar-sticky-top', `${barHeight}px`);
@@ -1598,9 +1695,6 @@ function repositionMusicPanel() {
         return;
     }
     let offset = 0;
-    // El header ("Supabase Chat Pro" + íconos) también va ANTES del panel en
-    // el flujo normal — faltaba sumarlo, por eso el panel arrancaba a mitad
-    // de la barra de progreso en vez de justo debajo de ella.
     const chatHeaderEl = chatContainer.querySelector('.chat-header');
     if (chatHeaderEl) offset += chatHeaderEl.offsetHeight;
     if (musicPlayerBar && musicPlayerBar.style.display !== 'none') {
@@ -1626,7 +1720,6 @@ if (musicPanelCloseBtn) {
 
 if (typeof repositionMusicPanel === 'function') repositionMusicPanel();
 
-// --- CONTROL DE VOLUMEN ---
 function updateVolumeIcon(volume, muted) {
     if (!muteBtn) return;
     if (muted || volume === 0) {
@@ -1638,7 +1731,6 @@ function updateVolumeIcon(volume, muted) {
     }
 }
 
-// Volumen inicial (recuerda la última preferencia guardada)
 if (audioPlayer) {
     const savedVolume = localStorage.getItem('radioVolume');
     lastVolume = savedVolume !== null ? parseFloat(savedVolume) : 0.8;
@@ -1673,16 +1765,11 @@ if (muteBtn) {
         }
         updateVolumeIcon(audioPlayer.volume, isMuted);
 
-        // En ventanas compactas el slider vive colapsado (ancho 0) para no
-        // ocupar espacio; tocar el ícono lo expande para poder ajustarlo
-        // con el dedo/mouse, sin necesidad de agrandar la ventana.
         const volumeControlEl = muteBtn.closest('.volume-control');
         if (volumeControlEl) volumeControlEl.classList.toggle('volume-expanded');
     });
 }
 
-// Colapsa el slider de volumen si se toca en cualquier otro lugar mientras
-// está expandido (solo tiene efecto visual en modo compacto).
 document.addEventListener('click', (e) => {
     if (e.target.closest('.volume-control')) return;
     const expanded = document.querySelector('.volume-control.volume-expanded');
