@@ -202,14 +202,20 @@ adminToggle.addEventListener('click', () => {
 // para que en móvil no tape el botón ✕ de esos paneles. Cada llamador usa su
 // propia clase (p.ej. 'hidden-by-game') para no pisarse entre sí: el control
 // solo vuelve a mostrarse cuando NINGÚN panel lo está ocultando.
+// Helpers genéricos para ocultar los controles flotantes (brillo y
+// "Novedades") mientras hay un panel a pantalla completa abierto (Juegos,
+// Mensajes Privados, Lightbox, Música), para que en móvil no tapen el botón
+// ✕ de esos paneles. Cada llamador usa su propia clase (p.ej.
+// 'hidden-by-game') para no pisarse entre sí: los controles solo vuelven a
+// mostrarse cuando NINGÚN panel los está ocultando.
 function hideDimControls(reasonClass) {
-    const dimControls = document.querySelector('.floating-dim-controls');
-    if (dimControls) dimControls.classList.add(reasonClass);
+    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-controls')
+        .forEach(el => el.classList.add(reasonClass));
 }
 
 function showDimControls(reasonClass) {
-    const dimControls = document.querySelector('.floating-dim-controls');
-    if (dimControls) dimControls.classList.remove(reasonClass);
+    document.querySelectorAll('.floating-dim-controls, .floating-whatsnew-controls')
+        .forEach(el => el.classList.remove(reasonClass));
 }
 
 function openLightbox(url) {
@@ -220,19 +226,18 @@ function openLightbox(url) {
     updateLightboxTransform();
     lightboxModal.style.display = 'flex';
 
-    // Oculta el control flotante de brillo mientras el visor está abierto,
-    // para que nunca tape el botón de cerrar (antes ambos usaban el mismo
-    // z-index y el control de brillo, al estar después en el HTML, ganaba).
-    const dimControls = document.querySelector('.floating-dim-controls');
-    if (dimControls) dimControls.classList.add('hidden-by-lightbox');
+    // Oculta los controles flotantes (brillo y "Novedades") mientras el
+    // visor está abierto, para que nunca tapen el botón de cerrar (antes
+    // usaban el mismo z-index y el control de brillo, al estar después en
+    // el HTML, ganaba).
+    if (typeof hideDimControls === 'function') hideDimControls('hidden-by-lightbox');
 }
 
 function closeLightbox() {
     lightboxModal.style.display = 'none';
     isDragging = false;
 
-    const dimControls = document.querySelector('.floating-dim-controls');
-    if (dimControls) dimControls.classList.remove('hidden-by-lightbox');
+    if (typeof showDimControls === 'function') showDimControls('hidden-by-lightbox');
 }
 
 function updateLightboxTransform() {

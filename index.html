@@ -203,6 +203,25 @@
         <input type="range" id="dimIntensitySlider" min="20" max="100" value="45" title="Nivel de brillo">
     </div>
 
+    <!-- BOTÓN FLOTANTE "NOVEDADES": abre un panel con la lista de todo lo
+         que el chat sabe hacer, explicado sin tecnicismos, para cualquier
+         usuario. Vive fuera del chat (igual que el control de brillo, del
+         otro lado), siempre visible. -->
+    <div class="floating-whatsnew-controls">
+        <button id="whatsNewToggleBtn" class="floating-dim-btn" title="Novedades y funciones del chat">ℹ️</button>
+    </div>
+
+    <!-- MODAL "NOVEDADES" -->
+    <div class="whatsnew-overlay" id="whatsNewOverlay">
+        <div class="whatsnew-box">
+            <div class="whatsnew-header">
+                <span class="whatsnew-title">✨ Todo lo que puedes hacer aquí</span>
+                <button id="whatsNewCloseBtn" class="whatsnew-close" title="Cerrar">✕</button>
+            </div>
+            <div class="whatsnew-body" id="whatsNewBody"></div>
+        </div>
+    </div>
+
     <script src="js/passwords.js?v=20260722"></script>
     <script src="js/games.js?v=20260722"></script>
     <script src="js/config.js?v=20260722"></script>
@@ -213,6 +232,7 @@
     <script src="js/chat.js?v=20260722"></script>
     <script src="js/dm.js?v=20260722"></script>
     <script src="js/media-picker.js?v=20260722"></script>
+    <script src="js/whatsnew.js?v=20260813"></script>
 </body>
 
 </html>
