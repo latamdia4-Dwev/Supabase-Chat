@@ -684,15 +684,21 @@ async function sendMessage() {
         } else {
             for (let i = 0; i < queueFiles.length; i++) {
                 const file = queueFiles[i];
-                // Imágenes y videos del chat ahora viven en Cloudflare R2 (el
-                // Worker valida sesión, tamaño y cuota, y devuelve la URL pública).
-                const uploaded = await uploadToR2('chat', file);
+                const isVid = file.type.startsWith('video/');
+                const fileName = `${Date.now()}_${isVid ? 'video_' : 'file_'}${sanitizeFileName(file.name || 'archivo')}`;
+
+                const { error: uploadError } = await supabaseClient.storage
+                    .from('chat-images').upload(fileName, file);
+                if (uploadError) throw uploadError;
+
+                const { data: urlData } = supabaseClient.storage
+                    .from('chat-images').getPublicUrl(fileName);
 
                 const { data: insertData, error: insertError } = await supabaseClient
                     .from('messages')
                     .insert([{
                         text: i === 0 ? text : '',
-                        image_url: uploaded.url,
+                        image_url: urlData.publicUrl,
                         sender_id: mySessionId,
                         username: myUsername || 'Anónimo'
                     }])
