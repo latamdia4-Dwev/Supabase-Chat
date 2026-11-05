@@ -1,6 +1,6 @@
 // js/config.js
-const SUPABASE_URL = "https://xftmgzrkqhuzoymvkoqp.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhmdG1nenJrcWh1em95bXZrb3FwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDU4NDcsImV4cCI6MjA5ODU4MTg0N30.CytrKW-eWdFwRxS5DHL432B1Fa5sklewtd_DpMLWs0Q";
+const SUPABASE_URL = "https://avdklsfhaoznpzqlxapc.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2ZGtsc2ZoYW96bnB6cWx4YXBjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM4OTc2MTgsImV4cCI6MjEwOTQ3MzYxOH0.8piH_mC0qvfyka3Vrcc00Ij6DLSZxPFRuwkg5HkX9-Y";
 
 // Inicialización única de la instancia global de Supabase.
 // persistSession: false y autoRefreshToken: false hacen que la sesión NUNCA
