@@ -25,7 +25,13 @@ const CHAT_LOGIN_EMAIL = "chat@tuapp.com";
 // GIFs. Consigue una gratis en https://developers.giphy.com/ (plan "Free" /
 // "Chat & Messaging") y pégala aquí. Sin una clave válida, la pestaña de
 // GIFs mostrará un error al buscar (emojis y stickers funcionan igual).
-const GIPHY_API_KEY = "TU_GIPHY_API_KEY_AQUI";
+const GIPHY_API_KEY = "https://developers.giphy.com";
+
+// URL del Worker de Cloudflare que guarda y sirve audio/video en R2
+// (ver cloudflare-worker/worker.js y LEEME_R2.md). Pega aquí la URL que te
+// da Cloudflare al crear el Worker, SIN barra final.
+const MEDIA_API_URL = "https://chat-media.latamdia4.workers.dev";
+
 
 // Referencias a los elementos del DOM (chat)
 const chatContainer = document.getElementById('chatContainer');

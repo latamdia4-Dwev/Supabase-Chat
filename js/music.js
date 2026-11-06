@@ -524,6 +524,11 @@ function setMusicMode(mode) {
     selectedTrackIds.clear();
     updateBulkActionBar();
     setSelectionMode(false);
+    trashViewOn = false;
+    const trashBtn = ensureTrashToggleBtn();
+    trashBtn.classList.remove('active');
+    trashBtn.textContent = '🗑️ Papelera';
+    trashBtn.style.display = mode === 'uploads' ? 'block' : 'none';
 
     if (tabRadio) tabRadio.classList.toggle('active', mode === 'radio');
     if (tabShared) tabShared.classList.toggle('active', mode === 'shared');
@@ -566,7 +571,7 @@ function ensureUploadFormatHint() {
     const detail = document.createElement('p');
     detail.className = 'music-hint upload-format-detail';
     detail.style.textAlign = 'left';
-    detail.textContent = 'Acepta MP3, WAV, OGG, M4A/AAC y FLAC (lo que tu navegador pueda reproducir). Si un archivo no sube: ya tienes una canción con ese mismo nombre (se omite para no duplicar), el archivo pesa más de lo permitido en tu proyecto de Supabase, o no es un archivo de audio válido — revisa el mensaje de error que aparece tras subir.';
+    detail.textContent = 'Acepta MP3, WAV, OGG, M4A/AAC y FLAC (lo que tu navegador pueda reproducir). Si un archivo no sube: ya tienes una canción con ese mismo nombre (se omite para no duplicar), el archivo pesa más de 40 MB o superaste tu espacio de música (500 MB), o no es un archivo de audio válido — revisa el mensaje de error que aparece tras subir.';
 
     toggle.addEventListener('click', () => {
         const open = detail.classList.toggle('open');
@@ -594,6 +599,115 @@ function ensureSelectionToggleBtn() {
         musicHint.parentNode.insertBefore(btn, musicHint.nextSibling);
     }
     return btn;
+}
+
+// --- PAPELERA (canciones tuyas que eran el último ejemplar; esperan 24 h) ---
+let trashViewOn = false;
+
+function ensureTrashToggleBtn() {
+    let btn = document.getElementById('trashToggleBtn');
+    if (btn) return btn;
+    btn = document.createElement('button');
+    btn.id = 'trashToggleBtn';
+    btn.type = 'button';
+    btn.className = 'selection-mode-toggle';
+    btn.textContent = '🗑️ Papelera';
+    btn.addEventListener('click', () => {
+        trashViewOn = !trashViewOn;
+        btn.classList.toggle('active', trashViewOn);
+        btn.textContent = trashViewOn ? '⬅ Volver a mis canciones' : '🗑️ Papelera';
+        const selBtn = ensureSelectionToggleBtn();
+        if (trashViewOn) {
+            setSelectionMode(false);
+            selBtn.style.display = 'none';
+            loadTrashTracks();
+        } else {
+            selBtn.style.display = currentMusicMode === 'radio' ? 'none' : 'block';
+            loadUploadedTracks();
+        }
+    });
+    const selectionBtn = ensureSelectionToggleBtn();
+    if (selectionBtn && selectionBtn.parentNode) {
+        selectionBtn.parentNode.insertBefore(btn, selectionBtn.nextSibling);
+    }
+    return btn;
+}
+
+async function loadTrashTracks() {
+    if (!radioResults || !currentUserId) return;
+    radioResults.innerHTML = '<div class="radio-status">\u{1F50E} Cargando papelera...</div>';
+    currentResultsList = [];
+    try {
+        const { data, error } = await withTimeout(
+            supabaseClient
+                .from('music_tracks')
+                .select('*')
+                .eq('user_id', currentUserId)
+                .not('deleted_at', 'is', null)
+                .order('deleted_at', { ascending: false })
+        );
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            radioResults.innerHTML = '<div class="radio-status">La papelera está vacía.</div>';
+            return;
+        }
+        radioResults.innerHTML = '';
+        data.forEach(track => radioResults.appendChild(renderTrashItem(track)));
+    } catch (err) {
+        console.error('Error al cargar la papelera:', err);
+        radioResults.innerHTML = '<div class="radio-status">⚠️ Error al cargar la papelera.</div>';
+    }
+}
+
+function renderTrashItem(track) {
+    const item = document.createElement('div');
+    item.className = 'radio-item';
+
+    const icon = document.createElement('span');
+    icon.className = 'radio-icon uploaded-icon';
+    icon.textContent = '🗑️';
+    item.appendChild(icon);
+
+    const info = document.createElement('div');
+    info.className = 'radio-info';
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'radio-name';
+    nameEl.textContent = track.display_name;
+    info.appendChild(nameEl);
+
+    const meta = document.createElement('span');
+    meta.className = 'radio-meta';
+    if (track.purge_at) {
+        const hoursLeft = Math.max(0, Math.ceil((new Date(track.purge_at) - Date.now()) / 3600000));
+        meta.textContent = hoursLeft > 0
+            ? `Se borra definitivamente en ~${hoursLeft} h`
+            : 'A punto de borrarse definitivamente';
+    }
+    info.appendChild(meta);
+    item.appendChild(info);
+
+    const restoreBtn = document.createElement('button');
+    restoreBtn.type = 'button';
+    restoreBtn.className = 'track-quick-btn';
+    restoreBtn.title = 'Recuperar canción';
+    restoreBtn.textContent = '↺';
+    restoreBtn.style.opacity = '1'; // siempre visible aquí, no solo al pasar el mouse
+    restoreBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+            const { error } = await supabaseClient
+                .from('music_tracks')
+                .update({ deleted_at: null, purge_at: null })
+                .eq('id', track.id);
+            if (error) throw error;
+            loadTrashTracks();
+        } catch (err) { showToast('No se pudo recuperar: ' + err.message, 'error'); }
+    };
+    item.appendChild(restoreBtn);
+
+    return item;
 }
 
 function setSelectionMode(on) {
@@ -627,7 +741,21 @@ function sanitizeFileName(rawName) {
     return cleanBase + ext;
 }
 
+// Hash del CONTENIDO del archivo (no del nombre): así dos personas que
+// suben el mismo mp3 con nombres distintos se detectan como la misma
+// canción, y archivos distintos con el mismo nombre no chocan.
+async function computeFileHash(file) {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+
 async function getSignedUrl(fileName) {
+    // Canciones nuevas (Cloudflare R2): URL temporal firmada por el Worker.
+    if (isR2MusicKey(fileName)) return withTimeout(getR2SignedUrl(fileName), 10000);
+    // Canciones viejas (Supabase Storage): camino anterior.
     const { data, error } = await withTimeout(
         supabaseClient.storage
             .from(MUSIC_UPLOADS_BUCKET)
@@ -650,6 +778,7 @@ async function loadUploadedTracks() {
                 .from('music_tracks')
                 .select('*')
                 .eq('user_id', currentUserId)
+                .is('deleted_at', null)
                 .order('created_at', { ascending: false })
         );
         if (error) throw error;
@@ -784,6 +913,7 @@ async function loadSharedTracks() {
                 .from('music_tracks')
                 .select('*')
                 .eq('is_public', true)
+                .is('deleted_at', null)
                 .order('created_at', { ascending: false })
         );
         if (error) throw error;
@@ -1172,9 +1302,33 @@ function renderTrackItem(track, index) {
             e.stopPropagation();
             if (!confirm(`¿Eliminar "${track.display_name}"?`)) return;
             try {
-                await supabaseClient.storage.from(MUSIC_UPLOADS_BUCKET).remove([track.file_name]);
-                const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
-                if (error) throw error;
+                // ¿Algún OTRO usuario activo sigue usando este mismo archivo
+                // (mismo contenido)? Si sí, el archivo NO se toca: solo se
+                // quita tu propia entrada de la lista.
+                let otherRefs = 0;
+                if (track.file_hash) {
+                    const { data: refCount, error: countErr } = await supabaseClient
+                        .rpc('count_other_active_refs', { p_hash: track.file_hash, p_exclude_id: track.id });
+                    if (countErr) throw countErr;
+                    otherRefs = refCount || 0;
+                }
+
+                if (track.file_hash && otherRefs > 0) {
+                    const { error } = await supabaseClient.from('music_tracks').delete().eq('id', track.id);
+                    if (error) throw error;
+                } else {
+                    // Eras la última persona con esta canción: no se borra al
+                    // instante, va a la papelera 24 horas por si te arrepientes
+                    // (botón "🗑️ Papelera"). Después se borra para siempre
+                    // (lo hace el cron del Worker de Cloudflare).
+                    const purgeAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+                    const { error } = await supabaseClient
+                        .from('music_tracks')
+                        .update({ deleted_at: new Date().toISOString(), purge_at: purgeAt })
+                        .eq('id', track.id);
+                    if (error) throw error;
+                    showToast('Nadie más tiene esta canción: se movió a la papelera. Puedes recuperarla durante 24 horas desde "🗑️ Papelera".', 'info');
+                }
                 await cacheDelete(track.id).catch(() => {});
                 delete _cachedTrackIds[track.id];
                 selectedTrackIds.delete(track.id);
@@ -1426,6 +1580,8 @@ if (uploadMusicInput) {
             console.error('No se pudo verificar canciones existentes:', err);
         }
 
+        let linkedShared = 0; // canciones que ya tenía otro usuario: solo se enlazaron
+
         for (const file of files) {
             try {
                 const displayName = file.name.replace(/\.[^/.]+$/, '');
@@ -1436,17 +1592,33 @@ if (uploadMusicInput) {
                     continue;
                 }
 
-                const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                const fileName = `${currentUserId}/${uniqueSuffix}_${sanitizeFileName(file.name)}`;
+                // Hash del contenido: si OTRO usuario ya subió exactamente esta
+                // canción (aunque con otro nombre), no se vuelve a guardar el
+                // archivo: se reutiliza el mismo y solo se crea TU fila
+                // (tu nombre, tu álbum, privada por defecto).
+                const fileHash = await computeFileHash(file);
+                let fileName;
 
-                const { error: upErr } = await supabaseClient.storage
-                    .from(MUSIC_UPLOADS_BUCKET)
-                    .upload(fileName, file, { upsert: false });
-                if (upErr) throw upErr;
+                const { data: sharedFileName, error: hashErr } = await supabaseClient
+                    .rpc('find_active_track_by_hash', { p_hash: fileHash });
+                if (hashErr) console.error('No se pudo verificar duplicados por contenido:', hashErr);
+
+                if (sharedFileName) {
+                    fileName = sharedFileName;
+                    linkedShared++;
+                } else {
+                    // Archivo nuevo: el Worker lo guarda en Cloudflare R2 con
+                    // un nombre único y devuelve la clave ("music/<usuario>/...").
+                    const uploaded = await uploadToR2('music', file);
+                    fileName = uploaded.key;
+                }
 
                 const { error: dbErr } = await supabaseClient
                     .from('music_tracks')
-                    .insert([{ user_id: currentUserId, file_name: fileName, display_name: displayName, is_public: false, album: albumValue }]);
+                    .insert([{
+                        user_id: currentUserId, file_name: fileName, file_hash: fileHash,
+                        display_name: displayName, is_public: false, album: albumValue
+                    }]);
                 if (dbErr) throw dbErr;
 
                 existingNames.add(normalizedName);
@@ -1458,6 +1630,9 @@ if (uploadMusicInput) {
         }
 
         const messages = [];
+        if (linkedShared > 0) {
+            showToast(`${linkedShared} canción(es) ya existían subidas por otro usuario: se agregaron a tu lista sin duplicar el archivo.`, 'ok');
+        }
         if (skippedDuplicates.length > 0) {
             messages.push(`Ya tenías ${skippedDuplicates.length} de estas canciones, no se volvieron a subir:\n${skippedDuplicates.join('\n')}`);
         }

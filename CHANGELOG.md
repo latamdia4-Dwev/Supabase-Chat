@@ -4,6 +4,32 @@ Todos los cambios notables del proyecto se registran aquí, del más reciente
 al más antiguo. Formato libre, en español, pensado para que cualquiera
 (no solo quien programó) entienda qué cambió y por qué.
 
+## 2026-11-05
+
+### ☁️ Audio y video ahora se guardan en Cloudflare R2
+- **Las canciones nuevas y las imágenes/videos del chat ya no usan el
+  almacenamiento de Supabase** (que se llenó). Ahora se guardan en
+  Cloudflare R2, con más espacio gratis. Supabase sigue encargándose del
+  login, los mensajes, los mensajes privados y la lista de canciones.
+- **Límites nuevos para cuidar el espacio:** canción hasta 40 MB (500 MB
+  por persona en total); imagen hasta 10 MB y video hasta 50 MB (300 MB por
+  persona en total). Si te pasas, la app te avisa con un mensaje claro.
+- Las canciones que ya estaban subidas antes siguen funcionando mientras
+  Supabase las tenga disponible.
+
+### 🎵 Canciones repetidas ya no se duplican
+- **Si subes una canción que otra persona ya subió** (aunque tenga otro
+  nombre), no se guarda otra copia: se agrega directamente a tu lista, con
+  tu propio nombre y álbum, y sigue siendo privada hasta que tú la compartas.
+  Así el espacio rinde mucho más.
+
+### 🗑️ Papelera de 24 horas en "Mi música"
+- **Borrar una canción ahora es más seguro.** Si otra persona todavía la
+  tiene, solo se quita de tu lista. Si eras la última persona que la tenía,
+  va a una **🗑️ Papelera** (botón nuevo junto a "Seleccionar varias") donde
+  puedes **recuperarla con ↺ durante 24 horas**; pasado ese tiempo se borra
+  para siempre y se libera el espacio.
+
 ## 2026-08-13
 
 ### 🎵 Música offline
