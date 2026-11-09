@@ -510,3 +510,96 @@ if (hideChatBtn) {
         await supabaseClient.auth.signOut();
     });
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// NAVEGACIÓN Y SINGLE SIGN-ON (SSO) CON EL CONVERSOR YOUTUBE A MP3
+// ══════════════════════════════════════════════════════════════════════
+
+const CONVERTER_APP_BASE_URL = 'https://supabase-chat-convierte-audio.onrender.com/';
+
+/**
+ * Abre el Conversor transfiriendo la sesión activa de Supabase
+ */
+async function openConverterWithSession() {
+    try {
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const session = sessionData && sessionData.session;
+        if (session && session.access_token && session.refresh_token) {
+            const targetUrl = `${CONVERTER_APP_BASE_URL}#access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
+            window.open(targetUrl, '_blank', 'noopener');
+        } else {
+            window.open(CONVERTER_APP_BASE_URL, '_blank', 'noopener');
+        }
+    } catch (e) {
+        console.warn('Aviso abriendo conversor:', e);
+        window.open(CONVERTER_APP_BASE_URL, '_blank', 'noopener');
+    }
+}
+
+const btnConverter = document.getElementById('btnGoToConverter');
+if (btnConverter) {
+    btnConverter.addEventListener('click', openConverterWithSession);
+}
+
+/**
+ * Auto-login al cargar la página:
+ * 1. Si viene hash con access_token y refresh_token transferidos desde el Conversor
+ * 2. Si ya hay sesión guardada en Supabase Auth
+ */
+async function initChatSSO() {
+    try {
+        // 1. Detección de sesión transferida en el hash de URL
+        if (window.location.hash && window.location.hash.includes('access_token=')) {
+            const hashClean = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : window.location.hash;
+            const params = new URLSearchParams(hashClean);
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+
+            if (accessToken && refreshToken) {
+                const { data, error } = await supabaseClient.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken
+                });
+
+                // Limpiar el hash de la URL para no dejar tokens en el historial
+                history.replaceState(null, '', window.location.pathname + window.location.search);
+
+                if (!error && data && data.session && data.session.user) {
+                    await finalizeChatAutoLogin(data.session);
+                    return;
+                }
+            }
+        }
+
+        // 2. Si ya hay sesión activa persistida en Supabase
+        const { data: sData } = await supabaseClient.auth.getSession();
+        if (sData && sData.session && sData.session.user) {
+            await finalizeChatAutoLogin(sData.session);
+        }
+    } catch (err) {
+        console.warn('Aviso en auto-login del chat:', err);
+    }
+}
+
+async function finalizeChatAutoLogin(session) {
+    try {
+        const userId = session.user.id;
+        const { data: profile } = await supabaseClient
+            .from('profiles')
+            .select('username')
+            .eq('id', userId)
+            .maybeSingle();
+
+        myUsername = (profile && profile.username) || session.user.email?.split('@')[0] || 'Usuario';
+        isGuest = false;
+        finishLogin();
+    } catch (e) {
+        console.warn('Aviso finalizando auto-login:', e);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initChatSSO);
+} else {
+    initChatSSO();
+}

@@ -4,6 +4,14 @@ Todos los cambios notables del proyecto se registran aquí, del más reciente
 al más antiguo. Formato libre, en español, pensado para que cualquiera
 (no solo quien programó) entienda qué cambió y por qué.
 
+## 2026-11-08 — v2.4.0
+
+### 🔗 Integración Single Sign-On (SSO) y Navegación Compartida con el Conversor de YouTube a MP3
+- **Botón directo al Conversor con sesión iniciada**: Se agregó el botón `🎵 Conversor` en la barra superior del chat (`chat-header`). Al hacer clic, transfiere de forma segura las credenciales de sesión activa (`access_token` y `refresh_token`) hacia `https://supabase-chat-convierte-audio.onrender.com/`, permitiendo que el usuario ingrese al conversor con su misma cuenta sin tener que volver a iniciar sesión.
+- **Auto-login por URL hash**: Si el usuario entra al chat redirigido desde el conversor con tokens en el hash (`#access_token=...&refresh_token=...`), la aplicación restaura la sesión de Supabase Auth automáticamente, carga el nombre de usuario de la tabla `profiles`, oculta la pantalla de bloqueo e ingresa de inmediato, limpiando la barra de direcciones para proteger los tokens.
+- **Auto-restauración de sesión persistente**: Al recargar la página, comprueba si existe una sesión previa en Supabase Auth y accede directamente al chat sin bloquear al usuario.
+- **Enlace rápido en pantalla de bloqueo**: Enlace directo `🎵 Ir al Conversor de YouTube a MP3` en la pantalla de bienvenida/login.
+
 ## 2026-11-05
 
 ### ☁️ Audio y video ahora se guardan en Cloudflare R2

@@ -2319,3 +2319,30 @@ html.brightness-dimmed {
         display: none !important;
     }
 }
+
+/* ─── Botón de Navegación al Conversor YouTube (SSO) ─── */
+.btn-converter-nav {
+    background: #0284c7 !important;
+    color: #fff !important;
+    border: none !important;
+    padding: 4px 10px !important;
+    border-radius: 8px !important;
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    transition: all 0.2s ease !important;
+}
+
+.btn-converter-nav:hover {
+    background: #0369a1 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35) !important;
+}
+
+.link-converter-nav:hover {
+    text-decoration: underline !important;
+    filter: brightness(1.2);
+}
