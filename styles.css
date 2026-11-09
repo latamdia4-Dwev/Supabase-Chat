@@ -2346,3 +2346,10 @@ html.brightness-dimmed {
     text-decoration: underline !important;
     filter: brightness(1.2);
 }
+
+/* ─── Botón Conversor en Panel Lateral de Música (v2.4.1) ─── */
+.btn-converter-side:hover {
+    background: #0369a1 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4) !important;
+}

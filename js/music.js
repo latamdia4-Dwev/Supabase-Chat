@@ -1425,9 +1425,74 @@ async function bulkSetPublic(makePublic) {
 // Revoked object-URL from the previous blob playback (if any) to free memory.
 let _lastBlobUrl = null;
 
+
+// ─── PRECARGA INTELIGENTE DE CANCIONES VECINAS [v2.4.1] ───────────────────
+// Descarga silenciosamente en caché de IndexedDB las 3 pistas anteriores
+// y 3 pistas posteriores a la que se está reproduciendo.
+// Ejemplo: si se reproduce la pista 10, precarga automáticamente 7, 8, 9 y 11, 12, 13.
+const _preloadQueueRunning = new Set();
+
+async function preloadNeighborTracks(centerIndex, radius = 3) {
+    if (!currentResultsList || currentResultsList.length <= 1) return;
+    if (currentMusicMode === 'radio') return;
+
+    const total = currentResultsList.length;
+    const indicesToPreload = [];
+
+    // Prioridad 1: Siguientes pistas (+1, +2, +3)
+    for (let offset = 1; offset <= radius; offset++) {
+        const nextIdx = centerIndex + offset;
+        if (nextIdx < total) indicesToPreload.push(nextIdx);
+    }
+
+    // Prioridad 2: Pistas anteriores (-1, -2, -3)
+    for (let offset = 1; offset <= radius; offset++) {
+        const prevIdx = centerIndex - offset;
+        if (prevIdx >= 0) indicesToPreload.push(prevIdx);
+    }
+
+    for (const idx of indicesToPreload) {
+        const neighbor = currentResultsList[idx];
+        if (!neighbor || !neighbor.id || !neighbor.file_name) continue;
+
+        if (_cachedTrackIds[neighbor.id] || _preloadQueueRunning.has(neighbor.id)) continue;
+
+        const isCached = await cacheGet(neighbor.id).catch(() => null);
+        if (isCached) {
+            _cachedTrackIds[neighbor.id] = true;
+            updateCacheIconForTrack(neighbor.id);
+            continue;
+        }
+
+        _preloadQueueRunning.add(neighbor.id);
+        (async () => {
+            try {
+                const signedUrl = await getSignedUrl(neighbor.file_name);
+                const resp = await fetch(signedUrl);
+                if (resp.ok) {
+                    const blob = await resp.blob();
+                    await cachePut(neighbor.id, blob);
+                    saveOfflineTrackMeta(neighbor);
+                    _cachedTrackIds[neighbor.id] = true;
+                    updateCacheIconForTrack(neighbor.id);
+                    if (typeof updateStorageStats === 'function') updateStorageStats();
+                }
+            } catch (err) {
+                // Silencioso
+            } finally {
+                _preloadQueueRunning.delete(neighbor.id);
+            }
+        })();
+    }
+}
+
 async function playUploadedTrack(track, index = -1) {
     if (!audioPlayer) return;
-    if (index >= 0) currentResultIndex = index;
+    if (index >= 0) {
+        currentResultIndex = index;
+        // [v2.4.1] Precarga automática de 3 canciones adelante y 3 atrás
+        preloadNeighborTracks(index, 3);
+    }
 
     setCurrentTrackTitle('Cargando... ' + (track.display_name || ''));
 

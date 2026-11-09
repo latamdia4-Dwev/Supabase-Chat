@@ -19,8 +19,7 @@
                 <button id="adminResetPwBtn" title="Resetear contraseña de otro usuario" class="super-admin-only" style="display:none;">🔑👤</button>
                 <button id="dmToggle" title="Mensajes privados" style="display:none;">💬</button>
                 <button id="gameToggle" title="Juegos">🎮</button>
-                <button id="btnGoToConverter" title="Conversor de YouTube a MP3 (con tu sesión)" class="btn-converter-nav">🎵 Conversor</button>
-                <button id="musicToggle" title="Radio / Música">📻</button>
+                <button id="musicToggle" title="Radio / Música">🎵</button>
                 <button id="themeToggle">☀️</button>
                 <button id="hideChatBtn" title="Ocultar chat">🙈</button>
             </div>
@@ -71,9 +70,14 @@
                 <button id="searchMusicBtn">Buscar</button>
             </div>
 
-            <div class="music-upload-row" id="musicUploadRow">
-                <label for="uploadMusicInput" class="music-upload-label">⬆️ Subir canción (mp3, wav, ogg...)</label>
+            <div class="music-upload-row" id="musicUploadRow" style="display: flex; gap: 8px; align-items: stretch; margin-bottom: 8px;">
+                <label for="uploadMusicInput" class="music-upload-label" style="flex: 1; margin: 0; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 0.8rem; padding: 9px 8px; text-align: center; cursor: pointer;">
+                    <span>⬆️</span><span>Subir archivo</span>
+                </label>
                 <input type="file" id="uploadMusicInput" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" multiple style="display: none;">
+                <button id="btnGoToConverter" class="btn-converter-side" type="button" title="Descargar y convertir música desde YouTube a tu cuenta con auto-login" style="flex: 1; margin: 0; background: #0284c7; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; font-weight: 600; font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 8px; transition: all 0.2s;">
+                    <span>🎵</span><span>Bajar de YouTube</span>
+                </button>
             </div>
             <p class="music-hint" id="musicHint"></p>
             <div class="radio-results" id="radioResults"></div>

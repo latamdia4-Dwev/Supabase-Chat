@@ -4,6 +4,15 @@ Todos los cambios notables del proyecto se registran aquí, del más reciente
 al más antiguo. Formato libre, en español, pensado para que cualquiera
 (no solo quien programó) entienda qué cambió y por qué.
 
+## 2026-11-08 — v2.4.1
+
+### 🎧 Reubicación Ergonómica del Conversor y Precarga Inteligente de Música (Buffer ±3 canciones)
+- **Limpieza de la cabecera del chat**: Se eliminó el botón invasivo de la barra superior (`chat-header`), evitando el solapamiento del badge `@Marko` sobre el título "Supabase Chat Pro" y devolviendo el espaciado original a los iconos.
+- **Botón integrado en Panel de Música**: Se ubicó el botón `🎵 Bajar de YouTube` en el panel lateral de música ("Mi música"), justo al lado de `⬆️ Subir archivo`, para que esté accesible exactamente donde el usuario organiza y reproduce sus pistas.
+- **Precarga inteligente en caché (Buffer ±3 pistas)**:
+  - Al reproducir cualquier canción (ej. pista 10), el sistema descarga y almacena automáticamente en segundo plano (IndexedDB) las 3 canciones anteriores (7, 8, 9) y las 3 canciones posteriores (11, 12, 13).
+  - Al presionar siguiente/anterior, la reproducción es instantánea y funciona incluso si se interrumpe la conexión a internet.
+
 ## 2026-11-08 — v2.4.0
 
 ### 🔗 Integración Single Sign-On (SSO) y Navegación Compartida con el Conversor de YouTube a MP3
