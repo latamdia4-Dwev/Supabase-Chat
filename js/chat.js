@@ -741,5 +741,40 @@ if (msgInput) {
     });
 }
 
+// --- AUTO-SEND AL CERRAR ---
+// Si queda texto escrito sin enviar y la pestaña se cierra (o se navega fuera),
+// se envía con fetch keepalive, que el navegador completa aunque la página muera.
+// Se usa un token en memoria porque getSession() es asíncrono y no es fiable en pagehide.
+let cachedAccessToken = null;
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+    cachedAccessToken = session ? session.access_token : null;
+});
+
+function flushDraftOnClose() {
+    if (isSending || !msgInput || !cachedAccessToken) return;
+    if (isGuest && !isAdmin) return;
+    if (queueFiles.length > 0) return; // los archivos no se pueden subir al cerrar
+    const text = msgInput.value.trim();
+    if (!text) return;
+
+    try {
+        fetch(`${SUPABASE_URL}/rest/v1/messages`, {
+            method: 'POST',
+            keepalive: true,
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${cachedAccessToken}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({ text, sender_id: mySessionId, username: myUsername || 'Anónimo' })
+        });
+        msgInput.value = ''; // evita reenvío si la página vuelve del bfcache
+    } catch (err) {
+        console.error('Auto-envío al cerrar falló:', err);
+    }
+}
+window.addEventListener('pagehide', flushDraftOnClose);
+
 refreshCurrentUserId();
 loadInitialMessages();
