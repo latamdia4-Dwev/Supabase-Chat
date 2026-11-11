@@ -2523,6 +2523,73 @@ html.brightness-dimmed {
 }
 
 /* ================================================================
+   DOCKS LATERALES: botones del menú movidos fuera del header
+   ================================================================ */
+.side-dock {
+    position: fixed;
+    z-index: 9000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.side-dock-left {
+    align-items: flex-end;
+}
+
+.side-dock:empty {
+    display: none;
+}
+
+.side-dock-right {
+    right: 14px;
+    top: 74px;
+}
+
+.side-dock > button {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid #333;
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+}
+
+.side-dock > button:not([style*="display: none"]) {
+    display: flex;
+}
+
+.side-dock > button:hover {
+    border-color: var(--accent);
+}
+
+/* El control de brillo, cuando se mueve al dock, deja de ser flotante */
+.side-dock .floating-dim-controls {
+    position: static;
+}
+
+/* Con el chat bloqueado, los botones del menú no se pueden usar (igual que en el header) */
+.chat-container.locked ~ .side-dock > button {
+    display: none !important;
+}
+
+.options-row select {
+    background: var(--bg-input);
+    color: var(--text-input);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 4px 6px;
+    font-size: 0.95em;
+}
+
+/* ================================================================
    MENSAJES PRIVADOS: BARRA DE ARCHIVOS EN COLA Y BOTÓN ➕
    ================================================================ */
 .dm-form .file-label {

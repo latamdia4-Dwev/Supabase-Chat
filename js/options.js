@@ -21,10 +21,27 @@ const COLOR_OPTIONS = [
     { key: 'pageBg',   label: 'Fondo de la página',   cssVar: '--bg-body' }
 ];
 
+// Botones del menú del header que se pueden mover a los laterales.
+// placement: 'header' | 'left' | 'right'.
+const MENU_BUTTONS = [
+    { key: 'options', id: 'optionsToggle', label: '⚙️ Opciones' },
+    { key: 'dm',      id: 'dmToggle',      label: '💬 Mensajes privados' },
+    { key: 'game',    id: 'gameToggle',    label: '🎮 Juegos' },
+    { key: 'music',   id: 'musicToggle',   label: '🎵 Radio / Música' },
+    { key: 'theme',   id: 'themeToggle',   label: '☀️ Tema claro/oscuro' },
+    { key: 'hide',    id: 'hideChatBtn',   label: '🙈 Ocultar chat' }
+];
+const MENU_PLACEMENTS = { header: 'Header', left: 'Izquierda', right: 'Derecha' };
+// El control de brillo vive flotante arriba a la derecha ('right') o en el dock izquierdo
+const DIM_PLACEMENTS = { right: 'Derecha (arriba)', left: 'Izquierda' };
+
 function getDefaultChatOptions() {
     const colors = {};
     COLOR_OPTIONS.forEach(c => { colors[c.key] = null; }); // null = valor del tema
+    const menu = { dim: 'right' };
+    MENU_BUTTONS.forEach(b => { menu[b.key] = 'header'; });
     return {
+        menu,
         volume: DEFAULT_VOLUME_PERCENT,
         rememberVolume: false,
         fontSize: DEFAULT_FONT_SIZE_PX,
@@ -40,6 +57,12 @@ function loadChatOptions() {
             if (Number.isFinite(saved.volume)) options.volume = Math.min(100, Math.max(0, saved.volume));
             options.rememberVolume = saved.rememberVolume === true;
             if (Number.isFinite(saved.fontSize)) options.fontSize = Math.min(28, Math.max(10, saved.fontSize));
+            if (saved.menu && typeof saved.menu === 'object') {
+                MENU_BUTTONS.forEach(b => {
+                    if (MENU_PLACEMENTS[saved.menu[b.key]]) options.menu[b.key] = saved.menu[b.key];
+                });
+                if (DIM_PLACEMENTS[saved.menu.dim]) options.menu.dim = saved.menu.dim;
+            }
             if (saved.colors && typeof saved.colors === 'object') {
                 COLOR_OPTIONS.forEach(c => {
                     if (/^#[0-9a-f]{6}$/i.test(saved.colors[c.key])) options.colors[c.key] = saved.colors[c.key];
@@ -111,6 +134,59 @@ function applyChatOptions() {
     rootStyle.backgroundColor = chatOptions.colors.pageBg || DEFAULT_PAGE_BG;
     rootStyle.setProperty('--msg-font-size', `${chatOptions.fontSize}px`);
 }
+
+// ── MENÚ: BOTONES EN EL HEADER O EN LOS LATERALES ──────────────────────
+// Los botones conservan su id y sus listeners: solo cambian de contenedor.
+const sideDockLeft = document.getElementById('sideDockLeft');
+const sideDockRight = document.getElementById('sideDockRight');
+const headerActionsEl = chatContainer ? chatContainer.querySelector('.header-actions') : null;
+const dimControlsEl = document.querySelector('.floating-dim-controls');
+let lastMenuLayoutSignature = '';
+
+function positionSideDocks() {
+    if (!sideDockLeft || !chatContainer) return;
+    const rect = chatContainer.getBoundingClientRect();
+    const headerEl = chatContainer.querySelector('.chat-header');
+    const headerBottom = headerEl ? headerEl.getBoundingClientRect().bottom : rect.top;
+    // Pegado al borde izquierdo del chat, debajo del botón ℹ️ (que va a la altura del header)
+    // (anclado por su borde derecho a 10px del chat, para que el control de brillo, más ancho, no lo tape)
+    sideDockLeft.style.right = `${window.innerWidth - rect.left + 10}px`;
+    sideDockLeft.style.top = `${Math.max(8, headerBottom + 8)}px`;
+}
+
+function layoutMenuButtons() {
+    if (!chatContainer || !headerActionsEl || !sideDockLeft || !sideDockRight) return;
+    const rect = chatContainer.getBoundingClientRect();
+    // Sin espacio a los lados (ventanas angostas), los botones vuelven al header
+    const canUseLeft = rect.left >= 62;
+    const canUseRight = window.innerWidth - rect.right >= 70;
+    const resolve = (placement) =>
+        (placement === 'left' && !canUseLeft) || (placement === 'right' && !canUseRight) ? 'header' : placement;
+
+    const placements = MENU_BUTTONS.map(b => resolve(chatOptions.menu[b.key]));
+    const dimPlacement = chatOptions.menu.dim === 'left' && canUseLeft ? 'left' : 'right';
+    const signature = placements.join(',') + '|' + dimPlacement;
+
+    if (signature !== lastMenuLayoutSignature) {
+        lastMenuLayoutSignature = signature;
+        // Se vuelven a insertar en orden canónico para que el orden sea estable
+        MENU_BUTTONS.forEach((b, i) => {
+            const el = document.getElementById(b.id);
+            if (!el) return;
+            const parent = placements[i] === 'left' ? sideDockLeft
+                : placements[i] === 'right' ? sideDockRight : headerActionsEl;
+            parent.appendChild(el);
+        });
+        if (dimControlsEl) {
+            if (dimPlacement === 'left') sideDockLeft.appendChild(dimControlsEl);
+            else document.body.appendChild(dimControlsEl);
+        }
+    }
+    positionSideDocks();
+}
+
+window.addEventListener('resize', layoutMenuButtons);
+window.addEventListener('scroll', positionSideDocks, { passive: true });
 
 // ── PANEL ──────────────────────────────────────────────────────────────
 const optionsBody = document.getElementById('optionsBody');
@@ -222,6 +298,54 @@ function buildOptionsPanel() {
     optionsUi.fontSlider = fontSlider;
     optionsUi.fontValue = fontValue;
 
+    // Menú: dónde se muestra cada botón
+    optionsBody.appendChild(buildOptionsTitle('🧭 Menú'));
+    const menuHint = document.createElement('div');
+    menuHint.className = 'options-hint';
+    menuHint.textContent = 'Mueve cada botón al header o a los laterales. En ventanas angostas, sin espacio a los lados, vuelven al header automáticamente.';
+    optionsBody.appendChild(menuHint);
+    optionsUi.menuSelects = {};
+    const fillSelect = (select, choices) => {
+        Object.entries(choices).forEach(([value, text]) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = text;
+            select.appendChild(opt);
+        });
+    };
+    const makeSelect = (choices, key) => {
+        const select = document.createElement('select');
+        fillSelect(select, choices);
+        select.addEventListener('change', () => {
+            chatOptions.menu[key] = select.value;
+            saveChatOptions();
+            layoutMenuButtons();
+        });
+        optionsUi.menuSelects[key] = select;
+        return select;
+    };
+    MENU_BUTTONS.forEach(b => {
+        const row = buildOptionsRow(b.label);
+        row.appendChild(makeSelect(MENU_PLACEMENTS, b.key));
+        optionsBody.appendChild(row);
+    });
+    const dimRow = buildOptionsRow('🌙 Brillo');
+    dimRow.appendChild(makeSelect(DIM_PLACEMENTS, 'dim'));
+    optionsBody.appendChild(dimRow);
+    const allRow = buildOptionsRow('Mover todos los botones a');
+    const allSelect = document.createElement('select');
+    fillSelect(allSelect, { '': 'Elegir…', ...MENU_PLACEMENTS });
+    allSelect.addEventListener('change', () => {
+        if (!allSelect.value) return;
+        MENU_BUTTONS.forEach(b => { chatOptions.menu[b.key] = allSelect.value; });
+        allSelect.value = '';
+        saveChatOptions();
+        layoutMenuButtons();
+        refreshOptionsUi();
+    });
+    allRow.appendChild(allSelect);
+    optionsBody.appendChild(allRow);
+
     // Álbumes ocultos
     optionsBody.appendChild(buildOptionsTitle('🙈 Álbumes ocultos'));
     const hiddenInfo = document.createElement('div');
@@ -261,6 +385,7 @@ function refreshOptionsUi() {
     optionsUi.rememberCb.checked = chatOptions.rememberVolume;
     optionsUi.fontSlider.value = chatOptions.fontSize;
     optionsUi.fontValue.textContent = `${chatOptions.fontSize}px`;
+    Object.entries(optionsUi.menuSelects).forEach(([key, select]) => { select.value = chatOptions.menu[key]; });
 
     // Sin color personalizado, el selector muestra el color real del tema actual
     const probe = getComputedStyle(document.documentElement);
@@ -289,6 +414,7 @@ function resetAllOptions() {
     try { localStorage.removeItem(OPTIONS_STORAGE_KEY); } catch (err) { /* sin localStorage */ }
     try { localStorage.removeItem(LAST_VOLUME_STORAGE_KEY); } catch (err) { /* sin localStorage */ }
     applyChatOptions();
+    layoutMenuButtons();
     if (typeof applyPlayerVolume === 'function') applyPlayerVolume(chatOptions.volume);
     refreshOptionsUi();
 }
@@ -319,3 +445,5 @@ if (optionsCloseBtn) optionsCloseBtn.addEventListener('click', closeOptionsPanel
 // Aplica colores y tamaño de texto guardados al cargar la página
 // (los selectores sin color propio se resincronizan con el tema al abrir el panel).
 applyChatOptions();
+layoutMenuButtons();
+setTimeout(layoutMenuButtons, 300); // el layout del header termina de asentarse un instante después

@@ -23,6 +23,11 @@ al más antiguo. Formato libre, en español, pensado para que cualquiera
 - Los ocultos pasan a la sección plegable "🙈 Álbumes ocultos (n)" al final, después de "Sin álbum"; ahí cada uno tiene 👁 para volver a mostrarlo.
 - La lista se guarda por usuario (`hiddenAlbums:<id>`), solo en ese navegador; no viaja a otros dispositivos.
 
+### 🧭 Menú personalizable (⚙️ > Menú)
+- Cada botón del header (⚙️ 💬 🎮 🎵 ☀️ 🙈) se puede mover al header, al lateral izquierdo (pegado al chat, debajo de ℹ️) o al derecho (borde de la ventana, debajo del control de brillo), de forma individual o todos a la vez. El control de brillo 🌙 puede ir arriba a la derecha o a la izquierda.
+- En ventanas angostas, sin espacio a los lados, los botones vuelven al header automáticamente. Con el chat bloqueado, los botones de los laterales se ocultan.
+- Se guarda en `chatOptions.menu` y se restablece con "Restablecer todas las opciones".
+
 ### 🧭 Paneles
 - **Un solo panel a la vez**: abrir 💬, 🎮, 🎵 o ⚙️ cierra el que estaba abierto, y 💬 también cierra su panel si ya está abierto. En pantalla ancha y alta (≥ 960 px de ancho y > 700 px de alto), donde la música es panel lateral, no se cierra nada.
 - **Header siempre visible**: mensajes privados, juegos y opciones empiezan debajo del header y de la barra de reproducción (variable `--panel-top`, calculada con `ResizeObserver`).

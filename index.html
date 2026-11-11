@@ -228,6 +228,11 @@
         <input type="range" id="dimIntensitySlider" min="20" max="100" value="45" title="Nivel de brillo">
     </div>
 
+    <!-- DOCKS LATERALES: aquí se colocan los botones del menú que el usuario
+         mueva desde Opciones (⚙️ > Menú). Se posicionan en js/options.js. -->
+    <div class="side-dock side-dock-left" id="sideDockLeft"></div>
+    <div class="side-dock side-dock-right" id="sideDockRight"></div>
+
     <!-- BOTÓN FLOTANTE "NOVEDADES": flota fuera de la caja del chat, pegado
          a su borde izquierdo a la altura del header (junto a la llave 🔑) —
          ver positionWhatsNewBtn() en whatsnew.js, que calcula su posición

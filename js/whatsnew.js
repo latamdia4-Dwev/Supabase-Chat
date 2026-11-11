@@ -57,7 +57,7 @@ const WHATS_NEW_SECTIONS = [
         items: [
             'Cambia entre modo oscuro y modo claro con un toque.',
             'Baja el brillo de toda la pantalla con el control 🌙 (útil de noche), con nivel ajustable.',
-            'Página de Opciones (⚙️): volumen inicial del reproductor (por defecto 10, con opción de recordar el último usado), colores de acento, mensajes, chat, encabezado y página, tamaño del texto, mostrar álbumes ocultos y restablecer todo. Se guarda solo en este navegador.',
+            'Página de Opciones (⚙️): volumen inicial del reproductor (por defecto 10, con opción de recordar el último usado), colores de acento, mensajes, chat, encabezado y página, tamaño del texto, menú (mueve los botones del header a los laterales, todos o uno por uno), mostrar álbumes ocultos y restablecer todo. Se guarda solo en este navegador.',
         ],
     },
 ];
