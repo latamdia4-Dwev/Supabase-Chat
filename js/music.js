@@ -44,7 +44,7 @@ function showToast(msg, type) {
     const toast = document.createElement('div');
     const colors = {
         error: { bg: 'rgba(40,0,0,0.92)', border: '#ff4d4d', icon: '⚠️' },
-        ok:    { bg: 'rgba(0,30,20,0.92)', border: '#3ecf8e', icon: '✅' },
+        ok:    { bg: 'rgba(0,30,20,0.92)', border: 'var(--accent, #3ecf8e)', icon: '✅' },
         warn:  { bg: 'rgba(40,25,0,0.92)', border: '#f59e0b', icon: '⚡' },
         info:  { bg: 'rgba(15,15,25,0.92)', border: '#666',   icon: 'ℹ️' },
     };
@@ -302,7 +302,7 @@ const musicPanelCloseBtn = document.getElementById('musicPanelCloseBtn');
 
 let isPlaying = false;
 let isMuted = false;
-let lastVolume = 0.8;
+let lastVolume = 0.1;
 let currentMusicMode = 'uploads'; // 'radio' | 'shared' | 'uploads'
 
 // Lista de resultados actualmente cargados (radios o canciones) y el índice
@@ -962,6 +962,140 @@ function updateAlbumSuggestions(tracks) {
 
 const NO_ALBUM_KEY = '\u0000__sin_album__';
 
+// ── ÁLBUMES OCULTOS ────────────────────────────────────────────────────
+// La lista se guarda por usuario y solo en este navegador (localStorage):
+// no viaja a otros dispositivos ni toca la base de datos.
+let hiddenAlbumsSectionOpen = false;
+
+function getHiddenAlbumsStorageKey() {
+    return `hiddenAlbums:${currentUserId || 'guest'}`;
+}
+
+function getHiddenAlbums() {
+    try {
+        const list = JSON.parse(localStorage.getItem(getHiddenAlbumsStorageKey()) || '[]');
+        return Array.isArray(list) ? list.filter(n => typeof n === 'string') : [];
+    } catch (err) {
+        return [];
+    }
+}
+
+function setHiddenAlbums(names) {
+    try {
+        const key = getHiddenAlbumsStorageKey();
+        if (names.length === 0) localStorage.removeItem(key);
+        else localStorage.setItem(key, JSON.stringify([...new Set(names)]));
+    } catch (err) {
+        console.warn('No se pudo guardar la lista de álbumes ocultos:', err);
+    }
+}
+
+function rerenderCurrentTrackList() {
+    if (currentMusicMode === 'radio' || !currentResultsList || currentResultsList.length === 0) return;
+    renderTracksGrouped(currentResultsList);
+}
+
+function hideAlbum(albumName) {
+    setHiddenAlbums([...getHiddenAlbums(), albumName]);
+    rerenderCurrentTrackList();
+}
+
+function unhideAlbum(albumName) {
+    setHiddenAlbums(getHiddenAlbums().filter(n => n !== albumName));
+    rerenderCurrentTrackList();
+}
+
+// Usado por el botón "Mostrar todos" de la página de Opciones
+function showAllHiddenAlbums() {
+    setHiddenAlbums([]);
+    rerenderCurrentTrackList();
+}
+
+function buildAlbumGroup(albumKey, groupTracks, isHiddenGroup) {
+    const isNoAlbum = albumKey === NO_ALBUM_KEY;
+    const ownTracksInGroup = groupTracks.filter(t => t.user_id === currentUserId);
+    const isCollapsed = collapsedAlbums.has(albumKey);
+
+    const groupWrap = document.createElement('div');
+    groupWrap.className = 'album-group';
+
+    const header = document.createElement('div');
+    header.className = 'album-header';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'album-toggle-arrow';
+    arrow.textContent = isCollapsed ? '▸' : '▾';
+    header.appendChild(arrow);
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'album-header-title';
+    titleSpan.textContent = `${isNoAlbum ? '📁 Sin álbum' : '💿 ' + albumKey} (${groupTracks.length})`;
+    header.appendChild(titleSpan);
+
+    if (ownTracksInGroup.length > 0) {
+        const selectAll = document.createElement('input');
+        selectAll.type = 'checkbox';
+        selectAll.className = 'album-select-all';
+        selectAll.title = 'Seleccionar todas de este álbum';
+        selectAll.onclick = (e) => e.stopPropagation();
+        selectAll.onchange = () => {
+            ownTracksInGroup.forEach(t => {
+                if (selectAll.checked) selectedTrackIds.add(t.id);
+                else selectedTrackIds.delete(t.id);
+                const cb = radioResults.querySelector(`[data-track-id="${t.id}"]`);
+                if (cb) cb.checked = selectAll.checked;
+            });
+            updateBulkActionBar();
+        };
+        header.appendChild(selectAll);
+
+        const allPublic = ownTracksInGroup.every(t => t.is_public);
+        const badge = document.createElement('button');
+        badge.className = `album-vis-badge ${allPublic ? 'public' : 'private'}`;
+        badge.textContent = allPublic ? '🌐 Pública' : '🔒 Privada';
+        badge.title = allPublic ? 'Hacer privado este álbum' : 'Compartir álbum públicamente';
+        badge.onclick = (e) => {
+            e.stopPropagation();
+            toggleAlbumSharing(isNoAlbum ? null : albumKey, !allPublic, ownTracksInGroup);
+        };
+        header.appendChild(badge);
+    }
+
+    // 🙈 oculta el álbum / 👁 lo vuelve a mostrar ("Sin álbum" no se oculta)
+    if (!isNoAlbum) {
+        const hideBtn = document.createElement('button');
+        hideBtn.type = 'button';
+        hideBtn.className = 'album-hide-btn';
+        hideBtn.textContent = isHiddenGroup ? '👁' : '🙈';
+        hideBtn.title = isHiddenGroup ? 'Volver a mostrar este álbum' : 'Ocultar este álbum';
+        hideBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isHiddenGroup) unhideAlbum(albumKey);
+            else hideAlbum(albumKey);
+        };
+        header.appendChild(hideBtn);
+    }
+
+    const tracksWrap = document.createElement('div');
+    tracksWrap.className = 'album-tracks' + (isCollapsed ? ' collapsed' : '');
+
+    header.addEventListener('click', () => {
+        const collapsed = tracksWrap.classList.toggle('collapsed');
+        if (collapsed) collapsedAlbums.add(albumKey);
+        else collapsedAlbums.delete(albumKey);
+        arrow.textContent = collapsed ? '▸' : '▾';
+    });
+
+    groupTracks.forEach((track) => {
+        const globalIndex = currentResultsList.indexOf(track);
+        tracksWrap.appendChild(renderTrackItem(track, globalIndex));
+    });
+
+    groupWrap.appendChild(header);
+    groupWrap.appendChild(tracksWrap);
+    return groupWrap;
+}
+
 function renderTracksGrouped(tracks) {
     radioResults.innerHTML = '';
     selectedTrackIds.clear();
@@ -991,78 +1125,45 @@ function renderTracksGrouped(tracks) {
         if (!collapsedAlbums.has(k)) collapsedAlbums.add(k);
     });
 
-    sortedKeys.forEach(albumKey => {
-        const groupTracks = groups.get(albumKey);
-        const isNoAlbum = albumKey === NO_ALBUM_KEY;
-        const ownTracksInGroup = groupTracks.filter(t => t.user_id === currentUserId);
-        const isCollapsed = collapsedAlbums.has(albumKey);
+    const hiddenNames = new Set(getHiddenAlbums());
+    const visibleKeys = sortedKeys.filter(k => k === NO_ALBUM_KEY || !hiddenNames.has(k));
+    const hiddenKeys = sortedKeys.filter(k => k !== NO_ALBUM_KEY && hiddenNames.has(k));
 
-        const groupWrap = document.createElement('div');
-        groupWrap.className = 'album-group';
-
-        const header = document.createElement('div');
-        header.className = 'album-header';
-
-        const arrow = document.createElement('span');
-        arrow.className = 'album-toggle-arrow';
-        arrow.textContent = isCollapsed ? '▸' : '▾';
-        header.appendChild(arrow);
-
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'album-header-title';
-        titleSpan.textContent = `${isNoAlbum ? '📁 Sin álbum' : '💿 ' + albumKey} (${groupTracks.length})`;
-        header.appendChild(titleSpan);
-
-        if (ownTracksInGroup.length > 0) {
-            const selectAll = document.createElement('input');
-            selectAll.type = 'checkbox';
-            selectAll.className = 'album-select-all';
-            selectAll.title = 'Seleccionar todas de este álbum';
-            selectAll.onclick = (e) => e.stopPropagation();
-            selectAll.onchange = () => {
-                ownTracksInGroup.forEach(t => {
-                    if (selectAll.checked) selectedTrackIds.add(t.id);
-                    else selectedTrackIds.delete(t.id);
-                    const cb = radioResults.querySelector(`[data-track-id="${t.id}"]`);
-                    if (cb) cb.checked = selectAll.checked;
-                });
-                updateBulkActionBar();
-            };
-            header.appendChild(selectAll);
-        }
-
-        if (ownTracksInGroup.length > 0) {
-            const allPublic = ownTracksInGroup.every(t => t.is_public);
-            const badge = document.createElement('button');
-            badge.className = `album-vis-badge ${allPublic ? 'public' : 'private'}`;
-            badge.textContent = allPublic ? '🌐 Pública' : '🔒 Privada';
-            badge.title = allPublic ? 'Hacer privado este álbum' : 'Compartir álbum públicamente';
-            badge.onclick = (e) => {
-                e.stopPropagation();
-                toggleAlbumSharing(isNoAlbum ? null : albumKey, !allPublic, ownTracksInGroup);
-            };
-            header.appendChild(badge);
-        }
-
-        const tracksWrap = document.createElement('div');
-        tracksWrap.className = 'album-tracks' + (isCollapsed ? ' collapsed' : '');
-
-        header.addEventListener('click', () => {
-            const collapsed = tracksWrap.classList.toggle('collapsed');
-            if (collapsed) collapsedAlbums.add(albumKey);
-            else collapsedAlbums.delete(albumKey);
-            arrow.textContent = collapsed ? '▸' : '▾';
-        });
-
-        groupTracks.forEach((track) => {
-            const globalIndex = currentResultsList.indexOf(track);
-            tracksWrap.appendChild(renderTrackItem(track, globalIndex));
-        });
-
-        groupWrap.appendChild(header);
-        groupWrap.appendChild(tracksWrap);
-        radioResults.appendChild(groupWrap);
+    // Álbumes visibles (con "Sin álbum" siempre al final de ellos)
+    visibleKeys.forEach(albumKey => {
+        radioResults.appendChild(buildAlbumGroup(albumKey, groups.get(albumKey), false));
     });
+
+    // Sección plegable de álbumes ocultos, después de "Sin álbum"
+    if (hiddenKeys.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'hidden-albums-section';
+
+        const sectionHeader = document.createElement('div');
+        sectionHeader.className = 'hidden-albums-header';
+        const sectionArrow = document.createElement('span');
+        sectionArrow.className = 'album-toggle-arrow';
+        sectionArrow.textContent = hiddenAlbumsSectionOpen ? '▾' : '▸';
+        const sectionTitle = document.createElement('span');
+        sectionTitle.textContent = `🙈 Álbumes ocultos (${hiddenKeys.length})`;
+        sectionHeader.appendChild(sectionArrow);
+        sectionHeader.appendChild(sectionTitle);
+
+        const sectionBody = document.createElement('div');
+        sectionBody.className = 'hidden-albums-body' + (hiddenAlbumsSectionOpen ? '' : ' collapsed');
+        hiddenKeys.forEach(albumKey => {
+            sectionBody.appendChild(buildAlbumGroup(albumKey, groups.get(albumKey), true));
+        });
+
+        sectionHeader.addEventListener('click', () => {
+            hiddenAlbumsSectionOpen = !sectionBody.classList.toggle('collapsed');
+            sectionArrow.textContent = hiddenAlbumsSectionOpen ? '▾' : '▸';
+        });
+
+        section.appendChild(sectionHeader);
+        section.appendChild(sectionBody);
+        radioResults.appendChild(section);
+    }
 
     updatePlayingHighlight();
 }
@@ -1983,8 +2084,13 @@ function repositionMusicPanel() {
 
 if (musicToggle && musicPanel) {
     musicToggle.addEventListener('click', () => {
-        if (musicPanel.classList.contains('open')) closeMusicPanel();
-        else openMusicPanel();
+        if (musicPanel.classList.contains('open')) {
+            closeMusicPanel();
+        } else {
+            // Un solo panel a la vez (en pantalla ancha y alta, el lateral convive)
+            if (typeof closeOtherPanels === 'function') closeOtherPanels('music');
+            openMusicPanel();
+        }
     });
 }
 
@@ -2005,12 +2111,37 @@ function updateVolumeIcon(volume, muted) {
     }
 }
 
+// Guarda el volumen actual como "último usado" (solo si la opción
+// "recordar último volumen" de la página de Opciones está activa).
+function persistCurrentPlayerVolume() {
+    if (typeof chatOptions === 'undefined' || !chatOptions.rememberVolume || !audioPlayer) return;
+    try {
+        const value = audioPlayer.volume > 0 ? audioPlayer.volume : 0;
+        localStorage.setItem(LAST_VOLUME_STORAGE_KEY, String(value));
+    } catch (err) { /* sin localStorage */ }
+}
+
+// Fija el volumen del reproductor (0 a 100) y sincroniza slider e ícono.
+// Lo usa el control de volumen de la página de Opciones.
+function applyPlayerVolume(percent) {
+    if (!audioPlayer) return;
+    const value = Math.min(1, Math.max(0, percent / 100));
+    audioPlayer.volume = value;
+    if (volumeSlider) volumeSlider.value = Math.round(value * 100);
+    isMuted = value === 0;
+    if (value > 0) lastVolume = value;
+    updateVolumeIcon(value, isMuted);
+    persistCurrentPlayerVolume();
+}
+
 if (audioPlayer) {
-    const savedVolume = localStorage.getItem('radioVolume');
-    lastVolume = savedVolume !== null ? parseFloat(savedVolume) : 0.8;
-    audioPlayer.volume = lastVolume;
-    if (volumeSlider) volumeSlider.value = Math.round(lastVolume * 100);
-    updateVolumeIcon(lastVolume, false);
+    // Volumen inicial: 10 por defecto, o el último usado si se activó "recordar"
+    const initialVolume = typeof getInitialVolume === 'function' ? getInitialVolume() : 0.1;
+    lastVolume = initialVolume > 0 ? initialVolume : 0.1;
+    audioPlayer.volume = initialVolume;
+    isMuted = initialVolume === 0;
+    if (volumeSlider) volumeSlider.value = Math.round(initialVolume * 100);
+    updateVolumeIcon(initialVolume, isMuted);
 }
 
 if (volumeSlider) {
@@ -2019,7 +2150,7 @@ if (volumeSlider) {
         if (audioPlayer) audioPlayer.volume = value;
         isMuted = value === 0;
         if (value > 0) lastVolume = value;
-        localStorage.setItem('radioVolume', value);
+        persistCurrentPlayerVolume();
         updateVolumeIcon(value, isMuted);
     });
 }

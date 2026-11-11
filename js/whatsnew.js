@@ -14,6 +14,7 @@ const WHATS_NEW_SECTIONS = [
             'Toca una foto para verla en grande, con zoom (rueda del mouse) y arrastrando para moverla.',
             'Reacciona a cualquier mensaje con un emoji, tocando el ícono 😊.',
             'El chat carga los mensajes más antiguos automáticamente cuando subes hasta arriba del todo.',
+            'Si pegas texto con sangrías, tabulaciones o columnas (código, tablas), se muestra en un bloque de letra monoespaciada con scroll horizontal para conservar su estructura.',
         ],
     },
     {
@@ -29,6 +30,8 @@ const WHATS_NEW_SECTIONS = [
         items: [
             'Con tu cuenta personal, puedes escribirle en privado a cualquier otra persona del chat.',
             'También tienes tu propio espacio de "Notas personales", solo para ti.',
+            'Envía fotos y videos también en privado: botón ➕ o pegándolos (Ctrl+V). Los videos tienen reproductor y las fotos se abren con zoom.',
+            'Solo hay un panel abierto a la vez (💬, 🎮, 🎵 o ⚙️) y el header siempre queda visible para cambiar de uno a otro.',
         ],
     },
     {
@@ -38,6 +41,7 @@ const WHATS_NEW_SECTIONS = [
             'Música compartida: escucha canciones que otras personas del chat subieron y marcaron como públicas.',
             'Mi música: sube tus propias canciones (privadas por defecto, o compártelas si quieres).',
             'Guarda canciones para escucharlas sin internet: toca 📥 en cualquier canción (tuya o compartida) y quedará disponible offline.',
+            'Oculta álbumes con 🙈: pasan a la sección plegable "Álbumes ocultos" al final de la lista, donde los recuperas con 👁. Se guarda por usuario, solo en este navegador.',
             'Controles de reproducción completos: play/pausa, siguiente/anterior, aleatorio, repetir, volumen y una barra para saltar a cualquier momento de la canción.',
         ],
     },
@@ -53,6 +57,7 @@ const WHATS_NEW_SECTIONS = [
         items: [
             'Cambia entre modo oscuro y modo claro con un toque.',
             'Baja el brillo de toda la pantalla con el control 🌙 (útil de noche), con nivel ajustable.',
+            'Página de Opciones (⚙️): volumen inicial del reproductor (por defecto 10, con opción de recordar el último usado), colores de acento, mensajes, chat, encabezado y página, tamaño del texto, mostrar álbumes ocultos y restablecer todo. Se guarda solo en este navegador.',
         ],
     },
 ];

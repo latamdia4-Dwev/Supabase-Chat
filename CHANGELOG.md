@@ -4,6 +4,33 @@ Todos los cambios notables del proyecto se registran aquí, del más reciente
 al más antiguo. Formato libre, en español, pensado para que cualquiera
 (no solo quien programó) entienda qué cambió y por qué.
 
+## 2026-11-11 — v2.5.0
+
+### ⚙️ Página de Opciones (botón ⚙️ del header)
+- **Volumen**: el volumen inicial ahora es 10 por defecto. Al mover ese control también cambia el volumen del reproductor al instante. Casilla opcional para recordar el último volumen usado (desactivada por defecto).
+- **Colores**: color de acento, mensajes enviados y recibidos, fondo del chat, encabezado y fondo de la página, con botón para restablecerlos. Para que el acento funcione, el verde fijo `#3ecf8e` del CSS y de los JS pasó a la variable `--accent` (con `--accent-rgb` para las transparencias).
+- **Texto**: tamaño del texto de los mensajes (variable `--msg-font-size`).
+- **Álbumes ocultos**: botón para mostrar todos de una vez.
+- **Restablecer**: vuelve todas las opciones a su valor original.
+- **Guardado**: todo en el navegador (`localStorage`, clave `chatOptions`), sin tocar la base de datos.
+
+### 📋 Textos pegados
+- Antes se recortaban los espacios del inicio y se perdía la estructura. Ahora solo se quitan las líneas vacías al inicio y los espacios al final (`normalizeMessageText` en `js/msg-utils.js`).
+- Si el texto trae sangrías, tabulaciones o columnas, se muestra en bloque monoespaciado con scroll horizontal (`.msg-pre`). Aplica al chat, a los mensajes privados y al envío automático al cerrar la pestaña.
+
+### 🙈 Álbumes ocultos
+- Cada álbum tiene un botón 🙈 para ocultarlo ("Sin álbum" no se oculta).
+- Los ocultos pasan a la sección plegable "🙈 Álbumes ocultos (n)" al final, después de "Sin álbum"; ahí cada uno tiene 👁 para volver a mostrarlo.
+- La lista se guarda por usuario (`hiddenAlbums:<id>`), solo en ese navegador; no viaja a otros dispositivos.
+
+### 🧭 Paneles
+- **Un solo panel a la vez**: abrir 💬, 🎮, 🎵 o ⚙️ cierra el que estaba abierto, y 💬 también cierra su panel si ya está abierto. En pantalla ancha y alta (≥ 960 px de ancho y > 700 px de alto), donde la música es panel lateral, no se cierra nada.
+- **Header siempre visible**: mensajes privados, juegos y opciones empiezan debajo del header y de la barra de reproducción (variable `--panel-top`, calculada con `ResizeObserver`).
+
+### 💬 Imágenes y videos en mensajes privados
+- Botón ➕, vista previa de los archivos en cola, envío con `uploadToR2('chat', …)` y pegado (Ctrl+V) igual que en el chat general. Los videos se muestran con reproductor y las imágenes se abren con zoom.
+- Los archivos ya enviados salen de la cola, así un reintento tras un fallo no duplica mensajes.
+
 ## 2026-11-08 — v2.4.1
 
 ### 🎧 Reubicación Ergonómica del Conversor y Precarga Inteligente de Música (Buffer ±3 canciones)

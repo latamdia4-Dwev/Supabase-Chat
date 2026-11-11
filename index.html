@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Supabase Chat Pro</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css?v=20260813-2">
+    <link rel="stylesheet" href="styles.css?v=20261111">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
@@ -17,6 +17,7 @@
             <span>Supabase Chat Pro</span>
             <div class="header-actions">
                 <button id="adminResetPwBtn" title="Resetear contraseña de otro usuario" class="super-admin-only" style="display:none;">🔑👤</button>
+                <button id="optionsToggle" title="Opciones">⚙️</button>
                 <button id="dmToggle" title="Mensajes privados" style="display:none;">💬</button>
                 <button id="gameToggle" title="Juegos">🎮</button>
                 <button id="musicToggle" title="Radio / Música">🎵</button>
@@ -35,7 +36,7 @@
             <span class="current-track" id="currentTrackTitle"><span id="currentTrackTitleInner">Ninguna estación seleccionada</span></span>
             <div class="volume-control">
                 <button id="muteBtn" title="Silenciar">🔊</button>
-                <input type="range" id="volumeSlider" min="0" max="100" value="80" title="Volumen">
+                <input type="range" id="volumeSlider" min="0" max="100" value="10" title="Volumen">
             </div>
             <audio id="audioPlayer"></audio>
         </div>
@@ -147,11 +148,25 @@
             <!-- Vista: conversación abierta con una persona -->
             <div class="dm-chat-view" id="dmChatView" style="display:none;">
                 <div class="dm-messages" id="dmMessages"></div>
+                <!-- Archivos (imágenes/videos) en cola para enviar en la conversación -->
+                <div class="preview-container dm-preview-container" id="dmPreviewContainer" style="display: none;"></div>
                 <form class="dm-form" id="dmForm" onsubmit="return false;">
+                    <label for="dmFileInput" class="file-label" title="Adjuntar imagen o video">➕</label>
+                    <input type="file" id="dmFileInput" accept="image/*,video/*" multiple style="display: none;">
                     <textarea id="dmMsgInput" placeholder="Escribe un mensaje..." rows="1"></textarea>
                     <button id="dmSendBtn" type="button">Enviar</button>
                 </form>
             </div>
+        </div>
+
+        <!-- PÁGINA DE OPCIONES (botón ⚙️ del header): volumen, colores, tamaño de
+             texto, álbumes ocultos y restablecer. El contenido lo arma js/options.js -->
+        <div class="options-panel" id="optionsPanel">
+            <div class="options-header">
+                <span>⚙️ Opciones</span>
+                <button id="optionsCloseBtn" title="Cerrar" type="button">✕</button>
+            </div>
+            <div class="options-body" id="optionsBody"></div>
         </div>
 
         <!-- PANTALLA DE BLOQUEO: modo Invitado (solo ver, contraseña compartida) vs
@@ -190,7 +205,7 @@
 
                 <p class="lock-error" id="lockError" style="display: none;"></p>
                 <div class="lock-converter-link-wrap" style="margin-top: 15px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); text-align: center;">
-                    <a href="https://supabase-chat-convierte-audio.onrender.com/" id="linkGoToConverterFromLock" class="link-converter-nav" target="_blank" rel="noopener" style="color: var(--primary, #3ecf8e); text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+                    <a href="https://supabase-chat-convierte-audio.onrender.com/" id="linkGoToConverterFromLock" class="link-converter-nav" target="_blank" rel="noopener" style="color: var(--accent, #3ecf8e); text-decoration: none; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
                         <span>🎵</span><span>Ir al Conversor de YouTube a MP3</span>
                     </a>
                 </div>
@@ -231,17 +246,19 @@
     </div>
 
     <script src="js/passwords.js?v=20260722"></script>
-    <script src="js/games.js?v=20260722"></script>
-    <script src="js/config.js?v=20261105"></script>
+    <script src="js/games.js?v=20261111"></script>
+    <script src="js/config.js?v=20261111"></script>
     <script src="js/media-api.js?v=20261105"></script>
     <script src="js/auth.js?v=20260722"></script>
-    <script src="js/lock.js?v=20260722"></script>
-    <script src="js/ui.js?v=20260813-2"></script>
-    <script src="js/music.js?v=20261105"></script>
-    <script src="js/chat.js?v=20261105"></script>
-    <script src="js/dm.js?v=20260722"></script>
+    <script src="js/lock.js?v=20261111"></script>
+    <script src="js/ui.js?v=20261111"></script>
+    <script src="js/options.js?v=20261111"></script>
+    <script src="js/music.js?v=20261111"></script>
+    <script src="js/msg-utils.js?v=20261111"></script>
+    <script src="js/chat.js?v=20261111"></script>
+    <script src="js/dm.js?v=20261111"></script>
     <script src="js/media-picker.js?v=20260722"></script>
-    <script src="js/whatsnew.js?v=20260813-2"></script>
+    <script src="js/whatsnew.js?v=20261111"></script>
 </body>
 
 </html>

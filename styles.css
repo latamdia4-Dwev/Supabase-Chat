@@ -13,6 +13,11 @@
     --bg-input: #1a1a1a;
     --text-input: #ffffff;
     --bg-preview: #161616;
+    /* Color de acento (configurable en la página de Opciones, ver js/options.js) */
+    --accent: #3ecf8e;
+    --accent-rgb: 62, 207, 142;
+    /* Tamaño del texto de los mensajes (configurable en Opciones) */
+    --msg-font-size: 16px;
 }
 
 /* ☀️ 2. VARIABLES DEL MODO CLARO SECUNDARIO (CUANDO NO TIENE LA CLASE .dark-mode) */
@@ -85,7 +90,7 @@ body {
     text-align: center;
     font-weight: bold;
     font-size: 1.1em;
-    border-bottom: 2px solid #3ecf8e;
+    border-bottom: 2px solid var(--accent);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -125,17 +130,21 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     position: relative;
     animation: fadeIn 0.2s ease-out;
+    font-size: var(--msg-font-size, 16px);
+    /* min-width:0 permite que los bloques monoespaciados con scroll
+       horizontal (.msg-pre) no ensanchen la burbuja más allá de max-width */
+    min-width: 0;
 }
 
 .message.sent {
     background: var(--bg-msg-sent);
-    color: var(--text-msg-sent);
+    color: var(--bubble-text-sent, var(--text-msg-sent));
     align-self: flex-end;
 }
 
 .message.received {
     background: var(--bg-msg-received);
-    color: var(--text-msg-received);
+    color: var(--bubble-text-received, var(--text-msg-received));
     align-self: flex-start;
 }
 
@@ -247,8 +256,8 @@ body {
 }
 
 .reaction-pill.mine {
-    background: rgba(62, 207, 142, 0.28);
-    border-color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.28);
+    border-color: var(--accent);
 }
 
 /* COLA DE VISTA PREVIA (PASTE & FILE INPUT) */
@@ -345,7 +354,7 @@ body {
 }
 
 .chat-form button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 50%;
@@ -431,6 +440,8 @@ body {
 .floating-dim-controls.hidden-by-game,
 .floating-dim-controls.hidden-by-dm,
 .floating-dim-controls.hidden-by-music,
+.floating-dim-controls.hidden-by-options,
+.floating-whatsnew-btn.hidden-by-options,
 .floating-whatsnew-btn.hidden-by-lightbox,
 .floating-whatsnew-btn.hidden-by-game,
 .floating-whatsnew-btn.hidden-by-dm,
@@ -451,7 +462,7 @@ body {
 /* AGRUPACIÓN DE BOTONES EN EL HEADER */
 .header-actions {
     display: flex;
-    gap: 6px;
+    gap: 3px;
 }
 
 /* BARRA DE REPRODUCCIÓN PERSISTENTE (siempre visible una vez que suena algo) */
@@ -470,7 +481,7 @@ body {
 }
 
 .music-player-bar button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 50%;
@@ -482,7 +493,7 @@ body {
 
 .music-player-bar button.active {
     background: #0b8a56;
-    box-shadow: 0 0 0 2px #3ecf8e inset;
+    box-shadow: 0 0 0 2px var(--accent) inset;
 }
 
 .music-progress-bar {
@@ -530,7 +541,7 @@ body {
 
 #progressSlider {
     flex: 1;
-    accent-color: #3ecf8e;
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
@@ -601,7 +612,7 @@ body {
     padding: 14px 15px;
     background: var(--bg-header);
     color: var(--text-header);
-    border-bottom: 2px solid #3ecf8e;
+    border-bottom: 2px solid var(--accent);
     flex-shrink: 0;
 }
 
@@ -639,8 +650,8 @@ body {
 
 .music-tab.active {
     opacity: 1;
-    color: #3ecf8e;
-    border-bottom: 2px solid #3ecf8e;
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
     font-weight: bold;
 }
 
@@ -659,7 +670,7 @@ body {
     display: block;
     background: none;
     border: none;
-    color: #3ecf8e;
+    color: var(--accent);
     opacity: 0.75;
     font-size: 0.74em;
     cursor: pointer;
@@ -714,7 +725,7 @@ body {
 }
 
 .music-search-row button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 20px;
@@ -743,7 +754,7 @@ body {
 
 .music-upload-label {
     display: inline-block;
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border-radius: 20px;
     padding: 8px 16px;
@@ -792,8 +803,8 @@ body {
 .load-more-bar {
     display: none;
     width: 100%;
-    background: rgba(62, 207, 142, 0.08);
-    color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.08);
+    color: var(--accent);
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
     padding: 8px;
@@ -803,7 +814,7 @@ body {
 }
 
 .load-more-bar:hover {
-    background: rgba(62, 207, 142, 0.16);
+    background: rgba(var(--accent-rgb), 0.16);
 }
 
 .load-more-bar:disabled {
@@ -858,8 +869,8 @@ body {
 
 .media-tab.active {
     opacity: 1;
-    color: #3ecf8e;
-    border-bottom: 2px solid #3ecf8e;
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
     font-weight: bold;
 }
 
@@ -882,7 +893,7 @@ body {
 }
 
 .media-search-row button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 20px;
@@ -912,7 +923,7 @@ body {
 
 .media-grid .emoji-item:hover,
 .media-grid .sticker-item:hover {
-    background: rgba(62, 207, 142, 0.15);
+    background: rgba(var(--accent-rgb), 0.15);
 }
 
 .media-grid .sticker-item {
@@ -959,6 +970,8 @@ body {
 .chat-container.locked .music-player-bar,
 .chat-container.locked .music-panel,
 .chat-container.locked .dm-panel,
+.chat-container.locked .options-panel,
+.chat-container.locked .game-panel,
 .chat-container.locked .load-more-bar {
     display: none !important;
 }
@@ -1025,7 +1038,7 @@ html.brightness-dimmed {
 
 #dimIntensitySlider {
     width: 70px;
-    accent-color: #3ecf8e;
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
@@ -1124,7 +1137,7 @@ html.brightness-dimmed {
 
 .whatsnew-section-title {
     font-weight: bold;
-    color: #3ecf8e;
+    color: var(--accent);
     font-size: 0.9em;
     margin-bottom: 8px;
 }
@@ -1206,7 +1219,7 @@ html.brightness-dimmed {
 .lock-box button {
     width: 100%;
     box-sizing: border-box;
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 20px;
@@ -1250,12 +1263,12 @@ html.brightness-dimmed {
 }
 
 .lock-tab.active {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #06241a;
 }
 
 .lock-switch {
-    color: #3ecf8e;
+    color: var(--accent);
     font-size: 0.78em;
     cursor: pointer;
     text-decoration: underline;
@@ -1280,12 +1293,12 @@ html.brightness-dimmed {
 }
 
 .radio-item:hover {
-    background: rgba(62, 207, 142, 0.12);
+    background: rgba(var(--accent-rgb), 0.12);
 }
 
 .radio-item.playing {
-    background: rgba(62, 207, 142, 0.18);
-    border: 1px solid #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.18);
+    border: 1px solid var(--accent);
 }
 
 .radio-item.playing .radio-play-icon::before {
@@ -1342,7 +1355,7 @@ html.brightness-dimmed {
 }
 
 .radio-play-icon {
-    color: #3ecf8e;
+    color: var(--accent);
     font-size: 0.85em;
     flex-shrink: 0;
 }
@@ -1383,8 +1396,8 @@ html.brightness-dimmed {
 }
 
 .track-quick-btn:hover {
-    background: rgba(62,207,142,0.22);
-    color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.22);
+    color: var(--accent);
 }
 
 .track-quick-btn.danger:hover {
@@ -1463,7 +1476,7 @@ html.brightness-dimmed {
     margin: 6px 10px 0 10px;
     background: transparent;
     border: 1px solid #333;
-    color: #3ecf8e;
+    color: var(--accent);
     border-radius: 14px;
     padding: 5px 12px;
     font-size: 0.75em;
@@ -1473,12 +1486,12 @@ html.brightness-dimmed {
 }
 
 .selection-mode-toggle:hover {
-    background: rgba(62,207,142,0.1);
+    background: rgba(var(--accent-rgb), 0.1);
 }
 
 .selection-mode-toggle.active {
-    background: rgba(62,207,142,0.18);
-    border-color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.18);
+    border-color: var(--accent);
     color: #fff;
 }
 
@@ -1546,13 +1559,13 @@ html.brightness-dimmed {
 }
 
 .album-picker-option:hover {
-    background: rgba(62,207,142,0.18);
+    background: rgba(var(--accent-rgb), 0.18);
     color: #fff;
 }
 
 .album-picker-option.current {
-    border: 1px solid #3ecf8e;
-    color: #3ecf8e;
+    border: 1px solid var(--accent);
+    color: var(--accent);
 }
 
 .album-picker-new-row {
@@ -1572,7 +1585,7 @@ html.brightness-dimmed {
 }
 
 .album-picker-new-btn {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #06241a;
     border: none;
     border-radius: 20px;
@@ -1647,7 +1660,7 @@ html.brightness-dimmed {
 
 .volume-control input[type="range"] {
     width: 70px;
-    accent-color: #3ecf8e;
+    accent-color: var(--accent);
     cursor: pointer;
 }
 
@@ -1656,15 +1669,15 @@ html.brightness-dimmed {
    siga teniendo prioridad si el chat se bloquea mientras está abierto. */
 .dm-panel {
     position: absolute;
-    top: 0;
+    top: var(--panel-top, 0px);
     left: 0;
     width: 100%;
-    height: 100%;
+    height: calc(100% - var(--panel-top, 0px));
     background: var(--bg-container);
     z-index: 400;
     display: flex;
     flex-direction: column;
-    border-radius: 12px;
+    border-radius: 0 0 12px 12px;
     overflow: hidden;
 }
 
@@ -1675,7 +1688,7 @@ html.brightness-dimmed {
     padding: 14px 15px;
     background: var(--bg-header);
     color: var(--text-header);
-    border-bottom: 2px solid #3ecf8e;
+    border-bottom: 2px solid var(--accent);
     flex-shrink: 0;
 }
 
@@ -1727,7 +1740,7 @@ html.brightness-dimmed {
 }
 
 .dm-search-row button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 20px;
@@ -1764,14 +1777,14 @@ html.brightness-dimmed {
 }
 
 .dm-user-item:hover {
-    background: rgba(62, 207, 142, 0.15);
+    background: rgba(var(--accent-rgb), 0.15);
 }
 
 .dm-user-avatar {
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    background: #3ecf8e;
+    background: var(--accent);
     color: #06241a;
     display: flex;
     align-items: center;
@@ -1843,7 +1856,7 @@ html.brightness-dimmed {
 }
 
 .dm-form button {
-    background: #3ecf8e;
+    background: var(--accent);
     color: #fff;
     border: none;
     border-radius: 50%;
@@ -1872,13 +1885,13 @@ html.brightness-dimmed {
 /* ── PANEL DE JUEGOS ─────────────────────────────────────────────────── */
 .game-panel {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
+    top: var(--panel-top, 0px); left: 0;
+    width: 100%; height: calc(100% - var(--panel-top, 0px));
     background: var(--bg-container);
     z-index: 450;
     display: flex;
     flex-direction: column;
-    border-radius: 12px;
+    border-radius: 0 0 12px 12px;
     overflow: hidden;
 }
 
@@ -1889,7 +1902,7 @@ html.brightness-dimmed {
     padding: 12px 15px;
     background: var(--bg-header);
     color: var(--text-header);
-    border-bottom: 2px solid #3ecf8e;
+    border-bottom: 2px solid var(--accent);
     flex-shrink: 0;
 }
 
@@ -1931,13 +1944,13 @@ html.brightness-dimmed {
 }
 
 .game-card:hover {
-    background: rgba(62,207,142,0.12);
-    border-color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.12);
+    border-color: var(--accent);
 }
 
 .game-card.active {
-    background: rgba(62,207,142,0.2);
-    border-color: #3ecf8e;
+    background: rgba(var(--accent-rgb), 0.2);
+    border-color: var(--accent);
 }
 
 .game-card-icon {
@@ -1954,7 +1967,7 @@ html.brightness-dimmed {
 
 .game-card-tag {
     font-size: 0.65em;
-    color: #3ecf8e;
+    color: var(--accent);
     opacity: 0.8;
 }
 
@@ -1990,7 +2003,7 @@ html.brightness-dimmed {
     right: 26px;
     background: none;
     border: none;
-    color: #3ecf8e;
+    color: var(--accent);
     cursor: pointer;
     font-size: 0.85em;
     opacity: 0;
@@ -2068,7 +2081,7 @@ html.brightness-dimmed {
 
 .album-toggle-arrow {
     font-size: 0.7em;
-    color: #3ecf8e;
+    color: var(--accent);
     width: 12px;
     flex-shrink: 0;
     text-align: center;
@@ -2088,7 +2101,7 @@ html.brightness-dimmed {
 .album-select-all {
     width: 15px;
     height: 15px;
-    accent-color: #3ecf8e;
+    accent-color: var(--accent);
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -2117,9 +2130,9 @@ html.brightness-dimmed {
 }
 
 .album-vis-badge.public {
-    color: #3ecf8e;
-    border-color: #3ecf8e;
-    background: rgba(62,207,142,0.1);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.1);
 }
 
 .album-vis-badge.private {
@@ -2135,7 +2148,7 @@ html.brightness-dimmed {
 .track-select-checkbox {
     width: 15px;
     height: 15px;
-    accent-color: #3ecf8e;
+    accent-color: var(--accent);
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -2147,14 +2160,14 @@ html.brightness-dimmed {
     gap: 6px;
     padding: 7px 10px;
     background: rgba(0,0,0,0.6);
-    border-top: 1px solid #3ecf8e;
+    border-top: 1px solid var(--accent);
     flex-shrink: 0;
     flex-wrap: wrap;
 }
 
 .bulk-share-count {
     font-size: 0.76em;
-    color: #3ecf8e;
+    color: var(--accent);
     font-weight: bold;
     flex: 1;
     min-width: 60px;
@@ -2178,9 +2191,9 @@ html.brightness-dimmed {
 }
 
 #bulkSharePublicBtn {
-    color: #3ecf8e;
-    border-color: #3ecf8e;
-    background: rgba(62,207,142,0.1);
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.1);
 }
 
 #bulkSharePrivateBtn {
@@ -2224,7 +2237,7 @@ html.brightness-dimmed {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(62, 207, 142, 0.45);
+    background-color: rgba(var(--accent-rgb), 0.45);
 }
 
 /* ================================================================
@@ -2352,4 +2365,214 @@ html.brightness-dimmed {
     background: #0369a1 !important;
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4) !important;
+}
+
+/* ================================================================
+   TEXTOS PEGADOS CON ESTRUCTURA (sangrías, tabulaciones, columnas)
+   Se muestran en bloque monoespaciado con scroll horizontal, sin
+   ajustar líneas, para conservar la estructura original.
+   ================================================================ */
+.msg-pre {
+    margin: 0;
+    padding: 6px 8px;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    white-space: pre;
+    tab-size: 4;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.9em;
+    line-height: 1.35;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+}
+
+/* ================================================================
+   PÁGINA DE OPCIONES (botón ⚙️ del header)
+   Empieza debajo del header y de la barra de reproducción.
+   ================================================================ */
+.options-panel {
+    display: none;
+    position: absolute;
+    top: var(--panel-top, 0px);
+    left: 0;
+    width: 100%;
+    height: calc(100% - var(--panel-top, 0px));
+    background: var(--bg-container);
+    z-index: 410;
+    flex-direction: column;
+    border-radius: 0 0 12px 12px;
+    overflow: hidden;
+}
+
+.options-panel.open {
+    display: flex;
+}
+
+.options-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: var(--bg-header);
+    color: var(--text-header);
+    border-bottom: 2px solid var(--accent);
+    flex-shrink: 0;
+    font-weight: bold;
+}
+
+.options-header button {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1.2em;
+    cursor: pointer;
+}
+
+.options-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 15px 18px 15px;
+    color: var(--text-msg-received);
+}
+
+.options-section-title {
+    font-size: 0.8em;
+    font-weight: bold;
+    color: var(--accent);
+    margin: 14px 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.options-section-title:first-child {
+    margin-top: 0;
+}
+
+.options-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 0.88em;
+}
+
+.options-row input[type="range"] {
+    flex: 1;
+    max-width: 55%;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.options-row input[type="color"] {
+    width: 42px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: none;
+    cursor: pointer;
+}
+
+.options-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.options-value {
+    min-width: 38px;
+    text-align: right;
+    opacity: 0.8;
+    font-size: 0.85em;
+}
+
+.options-hint {
+    font-size: 0.72em;
+    opacity: 0.6;
+    margin: 2px 0 6px 0;
+}
+
+.options-btn {
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--text-msg-received);
+    border: 1px solid #444;
+    border-radius: 12px;
+    padding: 6px 12px;
+    font-size: 0.82em;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.options-btn:hover {
+    background: rgba(var(--accent-rgb), 0.18);
+    border-color: var(--accent);
+}
+
+.options-btn.danger {
+    color: #ff8c42;
+    border-color: #ff8c42;
+}
+
+.options-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+/* ================================================================
+   MENSAJES PRIVADOS: BARRA DE ARCHIVOS EN COLA Y BOTÓN ➕
+   ================================================================ */
+.dm-form .file-label {
+    flex-shrink: 0;
+}
+
+.dm-preview-container {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ================================================================
+   ÁLBUMES OCULTOS (por usuario, solo en este navegador)
+   ================================================================ */
+.album-hide-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 0 2px;
+    flex-shrink: 0;
+    opacity: 0.75;
+}
+
+.album-hide-btn:hover {
+    opacity: 1;
+}
+
+.hidden-albums-section {
+    margin-top: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.hidden-albums-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 4px;
+    cursor: pointer;
+    font-size: 0.78em;
+    font-weight: bold;
+    color: var(--text-msg-received);
+    opacity: 0.8;
+}
+
+.hidden-albums-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.hidden-albums-body.collapsed {
+    display: none;
 }

@@ -121,7 +121,7 @@ function buildUsernameDropdown() {
     btn.textContent = '▾';
     btn.title = 'Ver usuarios registrados';
     btn.style.cssText = `
-        background:#3ecf8e;color:#fff;border:none;border-radius:50%;
+        background:var(--accent,#3ecf8e);color:#fff;border:none;border-radius:50%;
         width:36px;height:36px;font-size:1em;cursor:pointer;flex-shrink:0;
         display:flex;align-items:center;justify-content:center;
     `;
@@ -205,7 +205,7 @@ function buildProfileModal() {
                     padding:28px 24px;width:88%;max-width:320px;box-sizing:border-box;">
             <div style="font-size:2em;">👤</div>
             <p style="color:#fff;font-weight:bold;margin:0;">Mi perfil</p>
-            <p id="profileCurrentLabel" style="color:#3ecf8e;font-size:0.82em;margin:0 0 6px 0;"></p>
+            <p id="profileCurrentLabel" style="color:var(--accent,#3ecf8e);font-size:0.82em;margin:0 0 6px 0;"></p>
 
             <p style="color:#aaa;font-size:0.75em;margin:0;width:100%;text-align:left;">
                 Nuevo usuario <span style="opacity:0.6;">(dejar vacío para no cambiar)</span>
@@ -224,10 +224,10 @@ function buildProfileModal() {
                        outline:none;text-align:center;">
 
             <p id="profileError" style="color:#f55;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
-            <p id="profileSuccess" style="color:#3ecf8e;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
+            <p id="profileSuccess" style="color:var(--accent,#3ecf8e);font-size:0.8em;margin:0;display:none;text-align:center;"></p>
 
             <button id="profileSaveBtn"
-                style="width:100%;box-sizing:border-box;background:#3ecf8e;color:#fff;border:none;
+                style="width:100%;box-sizing:border-box;background:var(--accent,#3ecf8e);color:#fff;border:none;
                        border-radius:20px;padding:11px;font-weight:bold;cursor:pointer;margin-top:4px;">
                 Guardar cambios
             </button>
@@ -330,7 +330,7 @@ function buildProfileBadge() {
     const badge = document.createElement('button');
     badge.id = 'profileBadge';
     badge.style.cssText = `
-        display:none;background:rgba(62,207,142,0.15);color:#3ecf8e;border:1px solid #3ecf8e;
+        display:none;background:rgba(var(--accent-rgb,62,207,142),0.15);color:var(--accent,#3ecf8e);border:1px solid var(--accent,#3ecf8e);
         border-radius:20px;padding:4px 10px;font-size:0.75em;font-weight:bold;cursor:pointer;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px;
     `;

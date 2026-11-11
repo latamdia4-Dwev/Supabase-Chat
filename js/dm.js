@@ -63,6 +63,13 @@ function openConversationView() {
     subscribeDmChannel();
 }
 
+// true si el panel de mensajes privados está abierto mostrando una conversación
+// (lo usa el manejador de pegado de chat.js para enrutar archivos pegados).
+function isDmConversationOpen() {
+    return !!(dmPanel && dmPanel.style.display !== 'none' &&
+        dmChatView && dmChatView.style.display !== 'none');
+}
+
 function closeDmPanel() {
     if (dmPanel) dmPanel.style.display = 'none';
     if (typeof showDimControls === 'function') showDimControls('hidden-by-dm');
@@ -72,6 +79,10 @@ function closeDmPanel() {
 if (dmToggle) {
     dmToggle.addEventListener('click', () => {
         if (isGuest) { alert('Inicia sesión con tu cuenta para usar mensajes privados.'); return; }
+        // 💬 también cierra su panel si ya está abierto
+        if (dmPanel && dmPanel.style.display !== 'none') { closeDmPanel(); return; }
+        // Un solo panel a la vez (ver closeOtherPanels en ui.js)
+        if (typeof closeOtherPanels === 'function') closeOtherPanels('dm');
         if (dmPanel) dmPanel.style.display = 'flex';
         if (typeof hideDimControls === 'function') hideDimControls('hidden-by-dm');
         showDmListView();
@@ -292,7 +303,7 @@ function injectSelfChatShortcut() {
     btn.textContent = '📝';
     btn.title = 'Mis notas personales';
     btn.style.cssText = `
-        background:none;border:none;color:#3ecf8e;font-size:1.2em;cursor:pointer;
+        background:none;border:none;color:var(--accent,#3ecf8e);font-size:1.2em;cursor:pointer;
         flex-shrink:0;padding:0 4px;
     `;
     btn.addEventListener('click', async () => {
@@ -324,7 +335,7 @@ function renderDmMessage(msg) {
     // mensaje por su username, ya que ninguno de los 2 es "yo".
     if (adminViewingOthers) {
         const nameSpan = document.createElement('span');
-        nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:#3ecf8e;margin-bottom:3px;opacity:0.9;';
+        nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:var(--accent,#3ecf8e);margin-bottom:3px;opacity:0.9;';
         nameSpan.textContent = adminViewingProfilesMap[msg.sender_id] || 'Usuario';
         if (msg.hidden) {
             const delBadge = document.createElement('span');
@@ -335,19 +346,9 @@ function renderDmMessage(msg) {
         div.appendChild(nameSpan);
     }
 
-    if (msg.text) {
-        const p = document.createElement('p');
-        p.style.margin = '0';
-        p.style.whiteSpace = 'pre-wrap';
-        if (msg.hidden) { p.style.textDecoration = 'line-through'; p.style.opacity = '0.6'; }
-        p.textContent = msg.text;
-        div.appendChild(p);
-    }
-    if (msg.image_url) {
-        const img = document.createElement('img');
-        img.src = msg.image_url;
-        div.appendChild(img);
-    }
+    if (msg.text) appendMessageText(div, msg.text, msg.hidden);
+    // Videos con reproductor; imágenes con zoom (lightbox)
+    appendMessageMedia(div, msg.image_url);
 
     if (msg.edited_at && msg.original_text) {
         const editedNote = document.createElement('p');
@@ -551,22 +552,64 @@ function unsubscribeDmChannel() {
     dmLastKnownId = 0;
 }
 
+// Cola de archivos (imágenes/videos) pendientes de enviar en la conversación abierta
+let dmQueueFiles = [];
+let isDmSending = false;
+
+function updateDmFilePreview() {
+    renderFileQueuePreview(dmPreviewContainer, dmQueueFiles, updateDmFilePreview);
+}
+
+if (dmFileInput) {
+    dmFileInput.addEventListener('change', () => {
+        dmQueueFiles = dmQueueFiles.concat(Array.from(dmFileInput.files));
+        dmFileInput.value = ''; // permite volver a elegir el mismo archivo
+        updateDmFilePreview();
+    });
+}
+
 async function sendDmMessage() {
-    if (!dmMsgInput || !currentConversationId) return;
-    const text = dmMsgInput.value.trim();
-    if (!text) return;
+    if (!dmMsgInput || !currentConversationId || isDmSending) return;
+    const text = normalizeMessageText(dmMsgInput.value);
+    if (!text && dmQueueFiles.length === 0) return;
+
+    isDmSending = true;
     if (dmSendBtn) dmSendBtn.disabled = true;
     try {
-        const { error } = await supabaseClient
-            .from('private_messages')
-            .insert([{ conversation_id: currentConversationId, sender_id: currentUserId, text }]);
-        if (error) throw error;
+        if (dmQueueFiles.length === 0) {
+            const { error } = await supabaseClient
+                .from('private_messages')
+                .insert([{ conversation_id: currentConversationId, sender_id: currentUserId, text }]);
+            if (error) throw error;
+        } else {
+            // Cada archivo se sube a R2 y se envía como un mensaje; el texto va
+            // con el primero. Los ya enviados salen de la cola para que un
+            // reintento tras un fallo no duplique mensajes.
+            let pendingText = text;
+            while (dmQueueFiles.length > 0) {
+                const uploaded = await uploadToR2('chat', dmQueueFiles[0]);
+                const { error } = await supabaseClient
+                    .from('private_messages')
+                    .insert([{
+                        conversation_id: currentConversationId,
+                        sender_id: currentUserId,
+                        text: pendingText,
+                        image_url: uploaded.url
+                    }]);
+                if (error) throw error;
+                pendingText = '';
+                dmMsgInput.value = '';
+                dmQueueFiles.shift();
+                updateDmFilePreview();
+            }
+        }
         dmMsgInput.value = '';
         dmMsgInput.style.height = 'auto';
     } catch (err) {
         console.error(err);
-        alert('No se pudo enviar el mensaje.');
+        alert('No se pudo enviar el mensaje: ' + (err && err.message ? err.message : err));
     } finally {
+        isDmSending = false;
         if (dmSendBtn) dmSendBtn.disabled = false;
         if (dmMsgInput) dmMsgInput.focus();
     }

@@ -117,10 +117,10 @@ function buildAdminPasswordModal() {
                        outline:none;text-align:center;">
 
             <p id="adminPwError" style="color:#f55;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
-            <p id="adminPwSuccess" style="color:#3ecf8e;font-size:0.8em;margin:0;display:none;text-align:center;"></p>
+            <p id="adminPwSuccess" style="color:var(--accent,#3ecf8e);font-size:0.8em;margin:0;display:none;text-align:center;"></p>
 
             <button id="adminPwSaveBtn"
-                style="width:100%;box-sizing:border-box;background:#3ecf8e;color:#fff;border:none;
+                style="width:100%;box-sizing:border-box;background:var(--accent,#3ecf8e);color:#fff;border:none;
                        border-radius:20px;padding:11px;font-weight:bold;cursor:pointer;margin-top:4px;">
                 Resetear contraseña
             </button>
@@ -286,3 +286,49 @@ document.addEventListener('keydown', (e) => {
         closeLightbox();
     }
 });
+// ── GESTIÓN DE PANELES (un solo panel a la vez) ────────────────────────
+// 💬 Mensajes privados, 🎮 Juegos, 🎵 Música y ⚙️ Opciones se excluyen entre
+// sí: abrir uno cierra el que estaba abierto. Excepción: en pantalla ancha y
+// alta la música es un panel lateral junto al chat (ver music.js), y ahí no
+// ni se cierra ni cierra a los demás.
+function isMusicSidebarLayout() {
+    // Debe coincidir con el CSS: lateral desde 960px de ancho, y en ventanas
+    // de 700px de alto o menos el panel pasa a fluir en la página (@media max-height).
+    return window.innerWidth >= 960 && window.innerHeight > 700;
+}
+
+function closeOtherPanels(except) {
+    const sidebar = isMusicSidebarLayout();
+    if (except === 'music' && sidebar) return; // el panel lateral convive con los demás
+
+    if (except !== 'dm' && dmPanel && dmPanel.style.display !== 'none' &&
+        typeof closeDmPanel === 'function') closeDmPanel();
+    if (except !== 'game' && typeof gamePanel !== 'undefined' && gamePanel &&
+        gamePanel.style.display !== 'none' && typeof closeGamePanel === 'function') closeGamePanel();
+    if (except !== 'options' && typeof closeOptionsPanel === 'function') closeOptionsPanel();
+    if (except !== 'music' && !sidebar && musicPanel && musicPanel.classList.contains('open') &&
+        typeof closeMusicPanel === 'function') closeMusicPanel();
+}
+
+// ── ALTURA RESERVADA ARRIBA PARA LOS PANELES ───────────────────────────
+// Mensajes privados, Juegos y Opciones empiezan debajo del header y de la
+// barra de reproducción/progreso, para que los botones de arriba sigan
+// disponibles incluso en ventanas chicas. Se publica como --panel-top.
+function updatePanelTopOffset() {
+    if (!chatContainer) return;
+    const headerEl = chatContainer.querySelector('.chat-header');
+    const parts = [headerEl, musicPlayerBar, musicProgressBar];
+    const offset = parts.reduce((sum, el) => sum + (el ? el.offsetHeight : 0), 0);
+    chatContainer.style.setProperty('--panel-top', `${offset}px`);
+}
+
+if (chatContainer) {
+    updatePanelTopOffset();
+    window.addEventListener('resize', updatePanelTopOffset);
+    if (typeof ResizeObserver !== 'undefined') {
+        // Recalcula cuando el header o las barras cambian de tamaño o aparecen/desaparecen
+        const panelTopObserver = new ResizeObserver(updatePanelTopOffset);
+        [chatContainer.querySelector('.chat-header'), musicPlayerBar, musicProgressBar]
+            .forEach(el => { if (el) panelTopObserver.observe(el); });
+    }
+}

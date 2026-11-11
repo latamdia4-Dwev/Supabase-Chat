@@ -6,6 +6,18 @@ let oldestMessageTimestamp = null;
 let isLoadingOlderMessages = false;
 let noMoreOlderMessages = false;
 
+// Los archivos pegados van a la cola de los mensajes privados si hay una
+// conversación abierta; si no, a la cola del chat general.
+function queueFileForActiveTarget(file) {
+    if (typeof isDmConversationOpen === 'function' && isDmConversationOpen()) {
+        dmQueueFiles.push(file);
+        updateDmFilePreview();
+    } else {
+        queueFiles.push(file);
+        updateFilePreview();
+    }
+}
+
 document.addEventListener('paste', async (event) => {
     const clipboardData = event.clipboardData || event.originalEvent.clipboardData;
     if (!clipboardData) return;
@@ -17,8 +29,7 @@ document.addEventListener('paste', async (event) => {
         if (items[i].kind === 'file') {
             const file = items[i].getAsFile();
             if (file && file.size > 0 && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-                queueFiles.push(file);
-                updateFilePreview();
+                queueFileForActiveTarget(file);
                 handledLegacy = true;
             } else if (file) {
                 sawFileItemButEmpty = true;
@@ -39,8 +50,7 @@ document.addEventListener('paste', async (event) => {
                         if (blob && blob.size > 0) {
                             const extension = type.split('/')[1] || 'dat';
                             const file = new File([blob], `pegado_${Date.now()}.${extension}`, { type });
-                            queueFiles.push(file);
-                            updateFilePreview();
+                            queueFileForActiveTarget(file);
                             handledModern = true;
                         }
                     }
@@ -68,42 +78,7 @@ function sanitizeFileName(rawName) {
 }
 
 function updateFilePreview() {
-    if (!previewContainer) return;
-    previewContainer.innerHTML = '';
-    if (queueFiles.length > 0) {
-        previewContainer.style.display = 'flex';
-        queueFiles.forEach((file, index) => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'preview-item';
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'btn-remove';
-            removeBtn.textContent = '×';
-            removeBtn.onclick = (e) => {
-                e.preventDefault();
-                queueFiles.splice(index, 1);
-                updateFilePreview();
-            };
-            itemDiv.appendChild(removeBtn);
-            if (file.type.startsWith('image/')) {
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                itemDiv.appendChild(img);
-            } else if (file.type.startsWith('video/')) {
-                const video = document.createElement('video');
-                video.src = URL.createObjectURL(file);
-                video.muted = true;
-                itemDiv.appendChild(video);
-            } else {
-                const icon = document.createElement('div');
-                icon.className = 'file-icon';
-                icon.textContent = '📁';
-                itemDiv.appendChild(icon);
-            }
-            previewContainer.appendChild(itemDiv);
-        });
-    } else {
-        previewContainer.style.display = 'none';
-    }
+    renderFileQueuePreview(previewContainer, queueFiles, updateFilePreview);
 }
 
 if (fileInput) {
@@ -255,7 +230,7 @@ function openReactionPicker(msgId, anchorBtn) {
                 const btn = document.createElement('span');
                 btn.textContent = emoji;
                 btn.style.cssText = 'font-size:1.25em;cursor:pointer;padding:4px;border-radius:6px;transition:background 0.1s;';
-                btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(62,207,142,0.18)');
+                btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(var(--accent-rgb,62,207,142),0.18)');
                 btn.addEventListener('mouseleave', () => btn.style.background = 'transparent');
                 btn.onclick = (e) => { e.stopPropagation(); toggleReaction(msgId, emoji); };
                 grid.appendChild(btn);
@@ -367,7 +342,7 @@ function renderMessage(msg, prepend = false) {
     // Show sender name on every message so participants know who wrote what
     const displayName = msg.username || 'Anónimo';
     const nameSpan = document.createElement('span');
-    nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:#3ecf8e;margin-bottom:3px;opacity:0.9;';
+    nameSpan.style.cssText = 'display:block;font-size:0.72em;font-weight:bold;color:var(--accent,#3ecf8e);margin-bottom:3px;opacity:0.9;';
     nameSpan.textContent = isMe ? `${displayName} (tú)` : displayName;
     if (msg.hidden) {
         const delBadge = document.createElement('span');
@@ -378,13 +353,7 @@ function renderMessage(msg, prepend = false) {
     msgDiv.appendChild(nameSpan);
 
     if (msg.text) {
-        const textPara = document.createElement('p');
-        textPara.style.margin = '0';
-        textPara.style.whiteSpace = 'pre-wrap';
-        if (msg.hidden) textPara.style.textDecoration = 'line-through';
-        if (msg.hidden) textPara.style.opacity = '0.6';
-        textPara.textContent = msg.text;
-        msgDiv.appendChild(textPara);
+        appendMessageText(msgDiv, msg.text, msg.hidden);
     }
 
     // Si fue editado, muestra el texto original tachado arriba del actual
@@ -395,21 +364,7 @@ function renderMessage(msg, prepend = false) {
         msgDiv.appendChild(editedNote);
     }
 
-    if (msg.image_url) {
-        const isVideo = msg.image_url.match(/\.(mp4|webm|ogg|mov)$/i) || msg.image_url.includes('video_');
-        if (isVideo) {
-            const video = document.createElement('video');
-            video.src = msg.image_url;
-            video.controls = true;
-            video.preload = 'metadata';
-            msgDiv.appendChild(video);
-        } else {
-            const img = document.createElement('img');
-            img.src = msg.image_url;
-            img.onclick = () => openLightbox(msg.image_url);
-            msgDiv.appendChild(img);
-        }
-    }
+    appendMessageMedia(msgDiv, msg.image_url);
 
     const dateObj = msg.created_at ? new Date(msg.created_at) : new Date();
     const timeSpan = document.createElement('span');
@@ -666,7 +621,7 @@ let isSending = false;
 async function sendMessage() {
     if (isGuest && !isAdmin) { alert('Inicia sesión con tu cuenta para chatear.'); return; }
     if (isSending) return;
-    const text = msgInput.value.trim();
+    const text = normalizeMessageText(msgInput.value);
     if (!text && queueFiles.length === 0) return;
 
     isSending = true;
@@ -754,7 +709,7 @@ function flushDraftOnClose() {
     if (isSending || !msgInput || !cachedAccessToken) return;
     if (isGuest && !isAdmin) return;
     if (queueFiles.length > 0) return; // los archivos no se pueden subir al cerrar
-    const text = msgInput.value.trim();
+    const text = normalizeMessageText(msgInput.value);
     if (!text) return;
 
     try {

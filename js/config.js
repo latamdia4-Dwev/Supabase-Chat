@@ -132,6 +132,12 @@ const dmChatView = document.getElementById('dmChatView');
 const dmMessages = document.getElementById('dmMessages');
 const dmMsgInput = document.getElementById('dmMsgInput');
 const dmSendBtn = document.getElementById('dmSendBtn');
+const dmFileInput = document.getElementById('dmFileInput');
+const dmPreviewContainer = document.getElementById('dmPreviewContainer');
+
+// Referencias a los elementos del DOM (página de Opciones)
+const optionsToggle = document.getElementById('optionsToggle');
+const optionsPanel = document.getElementById('optionsPanel');
 
 // Variables de estado del Chat y Sesión
 const mySessionId = Math.random().toString(36).substring(2, 9);

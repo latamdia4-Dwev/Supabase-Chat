@@ -145,7 +145,7 @@ function loadGame(game) {
         backBtn.textContent = '← Juegos';
         backBtn.title = 'Volver a la lista';
         backBtn.style.cssText = `
-            background:none;border:none;color:#3ecf8e;font-size:0.85em;
+            background:none;border:none;color:var(--accent,#3ecf8e);font-size:0.85em;
             cursor:pointer;padding:0;font-weight:bold;
         `;
         backBtn.addEventListener('click', showGameList);
@@ -185,6 +185,8 @@ if (gameToggle) {
         if (gamePanel && gamePanel.style.display !== 'none') {
             closeGamePanel();
         } else {
+            // Un solo panel a la vez (ver closeOtherPanels en ui.js)
+            if (typeof closeOtherPanels === 'function') closeOtherPanels('game');
             openGamePanel();
         }
     });
