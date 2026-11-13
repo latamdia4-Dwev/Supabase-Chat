@@ -4,6 +4,14 @@ Todos los cambios notables del proyecto se registran aquí, del más reciente
 al más antiguo. Formato libre, en español, pensado para que cualquiera
 (no solo quien programó) entienda qué cambió y por qué.
 
+## 2026-11-12 — v2.5.1
+
+### 🐛 Envío del mensaje pendiente al cerrar sesión o apagar el equipo
+- Causa: al cerrar sesión el token en memoria se borraba antes del envío, y al apagar el equipo `pagehide` nunca se dispara.
+- Cerrar sesión (🙈): ahora envía el texto pendiente (`sendDraftBeforeLogout`) antes de `signOut()`.
+- Respaldo en `localStorage` (`pendingChatDraft`) mientras se escribe y en `visibilitychange`; si no llegó a enviarse (apagado, cierre brusco, fallo de red), se envía en el siguiente inicio de sesión del mismo usuario (`recoverPendingDraft`, llamado desde `finishLogin`). Se limpia al enviar normalmente o al vaciar el campo.
+- Limitación: con el equipo apagado no se puede enviar nada; el mensaje sale al volver a iniciar sesión.
+
 ## 2026-11-11 — v2.5.0
 
 ### ⚙️ Página de Opciones (botón ⚙️ del header)

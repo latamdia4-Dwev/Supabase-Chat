@@ -658,6 +658,7 @@ async function sendMessage() {
         }
 
         form.reset();
+        clearDraftBackup();
         queueFiles = [];
         updateFilePreview();
         msgInput.style.height = 'auto';
@@ -705,6 +706,87 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
     cachedAccessToken = session ? session.access_token : null;
 });
 
+// ── RESPALDO DEL BORRADOR (localStorage) ──
+// pagehide no se dispara si se apaga el equipo o el navegador muere, y al cerrar
+// sesión el token se borra antes. Por eso el texto pendiente se respalda mientras
+// se escribe; si no llegó a enviarse, se envía automáticamente en el siguiente
+// inicio de sesión del mismo usuario (recoverPendingDraft, llamado desde finishLogin).
+const PENDING_DRAFT_KEY = 'pendingChatDraft';
+let draftBackupTimer = null;
+
+function canSendDraft() {
+    return !(isGuest && !isAdmin);
+}
+
+function clearDraftBackup() {
+    clearTimeout(draftBackupTimer);
+    try { localStorage.removeItem(PENDING_DRAFT_KEY); } catch (err) { /* sin localStorage */ }
+}
+
+function saveDraftBackup() {
+    clearTimeout(draftBackupTimer);
+    if (!msgInput || !canSendDraft() || queueFiles.length > 0) return;
+    const text = normalizeMessageText(msgInput.value);
+    if (!text) { clearDraftBackup(); return; }
+    try {
+        localStorage.setItem(PENDING_DRAFT_KEY, JSON.stringify({ text, username: myUsername || null, savedAt: Date.now() }));
+    } catch (err) { /* sin localStorage o cuota llena */ }
+}
+
+if (msgInput) {
+    msgInput.addEventListener('input', () => {
+        clearTimeout(draftBackupTimer);
+        draftBackupTimer = setTimeout(saveDraftBackup, 400);
+    });
+}
+// En móviles y al apagar/suspender, visibilitychange suele dispararse aunque pagehide no
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') saveDraftBackup();
+});
+
+// Envía el texto pendiente con la sesión aún válida (se usa justo antes de cerrar sesión).
+// Si falla, el respaldo en localStorage queda para el siguiente inicio de sesión.
+async function sendDraftBeforeLogout() {
+    if (isSending || !msgInput || !canSendDraft() || queueFiles.length > 0) return;
+    const text = normalizeMessageText(msgInput.value);
+    if (!text) return;
+    saveDraftBackup();
+    try {
+        const { error } = await supabaseClient
+            .from('messages')
+            .insert([{ text, sender_id: mySessionId, username: myUsername || 'Anónimo' }]);
+        if (error) throw error;
+        msgInput.value = '';
+        clearDraftBackup();
+    } catch (err) {
+        console.error('No se pudo enviar el borrador antes de cerrar sesión:', err);
+    }
+}
+
+// Envía el borrador respaldado de una sesión anterior (apagado, cierre de sesión fallido, etc.)
+let isRecoveringDraft = false;
+async function recoverPendingDraft() {
+    if (isRecoveringDraft || !canSendDraft()) return;
+    let draft = null;
+    try { draft = JSON.parse(localStorage.getItem(PENDING_DRAFT_KEY) || 'null'); } catch (err) { return; }
+    if (!draft || !draft.text) { clearDraftBackup(); return; }
+    // Solo lo envía el mismo usuario que lo escribió
+    if (draft.username && myUsername && draft.username !== myUsername) return;
+    isRecoveringDraft = true;
+    try {
+        const { error } = await supabaseClient
+            .from('messages')
+            .insert([{ text: draft.text, sender_id: mySessionId, username: myUsername || draft.username || 'Anónimo' }]);
+        if (error) throw error;
+        clearDraftBackup();
+        if (msgInput && normalizeMessageText(msgInput.value) === draft.text) msgInput.value = '';
+    } catch (err) {
+        console.error('No se pudo enviar el borrador pendiente:', err);
+    } finally {
+        isRecoveringDraft = false;
+    }
+}
+
 function flushDraftOnClose() {
     if (isSending || !msgInput || !cachedAccessToken) return;
     if (isGuest && !isAdmin) return;
@@ -725,6 +807,7 @@ function flushDraftOnClose() {
             body: JSON.stringify({ text, sender_id: mySessionId, username: myUsername || 'Anónimo' })
         });
         msgInput.value = ''; // evita reenvío si la página vuelve del bfcache
+        clearDraftBackup();
     } catch (err) {
         console.error('Auto-envío al cerrar falló:', err);
     }

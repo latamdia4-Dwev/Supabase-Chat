@@ -396,6 +396,8 @@ function finishLogin() {
     if (typeof loadInitialMessages === 'function') loadInitialMessages();
     if (typeof applyGuestRestrictions === 'function') applyGuestRestrictions();
     updateProfileBadge();
+    // Envía el texto pendiente que quedó sin enviar en una sesión anterior
+    if (typeof recoverPendingDraft === 'function') recoverPendingDraft();
 }
 
 // Llama al Edge Function admin-reset-password (ver supabase-functions-admin-reset-password/index.ts).
@@ -501,6 +503,8 @@ if (registerPasswordInput) {
 
 if (hideChatBtn) {
     hideChatBtn.addEventListener('click', async () => {
+        // Primero se envía el texto pendiente, mientras la sesión sigue activa
+        if (typeof sendDraftBeforeLogout === 'function') await sendDraftBeforeLogout();
         myUsername = null;
         isGuest = true;
         myIsRealAdmin = false;
