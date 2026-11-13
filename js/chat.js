@@ -706,21 +706,64 @@ supabaseClient.auth.onAuthStateChange((_event, session) => {
     cachedAccessToken = session ? session.access_token : null;
 });
 
-// ── RESPALDO DEL BORRADOR (localStorage) ──
+// ── RESPALDO DEL BORRADOR (servidor + localStorage) ──
 // pagehide no se dispara si se apaga el equipo o el navegador muere, y al cerrar
-// sesión el token se borra antes. Por eso el texto pendiente se respalda mientras
-// se escribe; si no llegó a enviarse, se envía automáticamente en el siguiente
-// inicio de sesión del mismo usuario (recoverPendingDraft, llamado desde finishLogin).
+// sesión el token se borra antes. Además localStorage puede borrarse al apagar
+// (modo incógnito, "borrar datos al cerrar") o no existir en otro equipo, así que el
+// respaldo principal vive en la base de datos (tabla pending_drafts, ver
+// sql/pending_drafts.sql, una fila por usuario con RLS). localStorage queda como
+// respaldo secundario si la tabla aún no existe o no hay red. El texto pendiente se
+// envía automáticamente en el siguiente inicio de sesión (recoverPendingDraft).
 const PENDING_DRAFT_KEY = 'pendingChatDraft';
+const DRAFT_SERVER_SYNC_DELAY_MS = 3000;
 let draftBackupTimer = null;
+let draftServerTimer = null;
+let serverDraftExists = false;
+let cachedUserId = null;
+
+supabaseClient.auth.onAuthStateChange((_event, session) => {
+    cachedUserId = session && session.user ? session.user.id : null;
+});
 
 function canSendDraft() {
     return !(isGuest && !isAdmin);
 }
 
+async function deleteServerDraft() {
+    if (!serverDraftExists || !cachedUserId) return;
+    serverDraftExists = false;
+    try {
+        const { error } = await supabaseClient.from('pending_drafts').delete().eq('user_id', cachedUserId);
+        if (error) throw error;
+    } catch (err) {
+        console.warn('No se pudo borrar el borrador del servidor:', err);
+    }
+}
+
+async function syncDraftToServer() {
+    clearTimeout(draftServerTimer);
+    if (!msgInput || !cachedUserId || !canSendDraft() || queueFiles.length > 0) return;
+    const text = normalizeMessageText(msgInput.value);
+    if (!text) { await deleteServerDraft(); return; }
+    try {
+        const { error } = await supabaseClient.from('pending_drafts').upsert({
+            user_id: cachedUserId,
+            text,
+            username: myUsername || null,
+            updated_at: new Date().toISOString()
+        });
+        if (error) throw error;
+        serverDraftExists = true;
+    } catch (err) {
+        console.warn('No se pudo respaldar el borrador en el servidor (¿falta sql/pending_drafts.sql?):', err);
+    }
+}
+
 function clearDraftBackup() {
     clearTimeout(draftBackupTimer);
+    clearTimeout(draftServerTimer);
     try { localStorage.removeItem(PENDING_DRAFT_KEY); } catch (err) { /* sin localStorage */ }
+    return deleteServerDraft();
 }
 
 function saveDraftBackup() {
@@ -737,51 +780,85 @@ if (msgInput) {
     msgInput.addEventListener('input', () => {
         clearTimeout(draftBackupTimer);
         draftBackupTimer = setTimeout(saveDraftBackup, 400);
+        // Al servidor con una pausa corta: a lo más se pierden los últimos segundos escritos
+        clearTimeout(draftServerTimer);
+        draftServerTimer = setTimeout(syncDraftToServer, DRAFT_SERVER_SYNC_DELAY_MS);
     });
 }
 // En móviles y al apagar/suspender, visibilitychange suele dispararse aunque pagehide no
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') saveDraftBackup();
+    if (document.visibilityState === 'hidden') {
+        saveDraftBackup();
+        syncDraftToServer();
+    }
 });
 
 // Envía el texto pendiente con la sesión aún válida (se usa justo antes de cerrar sesión).
-// Si falla, el respaldo en localStorage queda para el siguiente inicio de sesión.
+// Si falla, el respaldo (servidor y localStorage) queda para el siguiente inicio de sesión.
 async function sendDraftBeforeLogout() {
     if (isSending || !msgInput || !canSendDraft() || queueFiles.length > 0) return;
     const text = normalizeMessageText(msgInput.value);
     if (!text) return;
     saveDraftBackup();
+    await syncDraftToServer();
     try {
         const { error } = await supabaseClient
             .from('messages')
             .insert([{ text, sender_id: mySessionId, username: myUsername || 'Anónimo' }]);
         if (error) throw error;
         msgInput.value = '';
-        clearDraftBackup();
+        await clearDraftBackup(); // espera el borrado en el servidor antes de cerrar sesión
     } catch (err) {
         console.error('No se pudo enviar el borrador antes de cerrar sesión:', err);
     }
 }
 
-// Envía el borrador respaldado de una sesión anterior (apagado, cierre de sesión fallido, etc.)
+// Envía el borrador respaldado de una sesión anterior (apagado, cierre de sesión fallido, etc.).
+// Primero lo reclama borrando la fila del servidor (delete ... returning), así dos
+// dispositivos no lo envían dos veces; si el envío falla, se vuelve a guardar.
 let isRecoveringDraft = false;
 async function recoverPendingDraft() {
     if (isRecoveringDraft || !canSendDraft()) return;
-    let draft = null;
-    try { draft = JSON.parse(localStorage.getItem(PENDING_DRAFT_KEY) || 'null'); } catch (err) { return; }
-    if (!draft || !draft.text) { clearDraftBackup(); return; }
-    // Solo lo envía el mismo usuario que lo escribió
-    if (draft.username && myUsername && draft.username !== myUsername) return;
     isRecoveringDraft = true;
+    let draft = null;
     try {
-        const { error } = await supabaseClient
-            .from('messages')
-            .insert([{ text: draft.text, sender_id: mySessionId, username: myUsername || draft.username || 'Anónimo' }]);
-        if (error) throw error;
-        clearDraftBackup();
-        if (msgInput && normalizeMessageText(msgInput.value) === draft.text) msgInput.value = '';
-    } catch (err) {
-        console.error('No se pudo enviar el borrador pendiente:', err);
+        const { data: sessionData } = await supabaseClient.auth.getSession();
+        const userId = sessionData && sessionData.session ? sessionData.session.user.id : null;
+
+        if (userId) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('pending_drafts').delete().eq('user_id', userId).select();
+                if (error) throw error;
+                if (data && data[0] && data[0].text) draft = { text: data[0].text, username: data[0].username };
+            } catch (err) {
+                console.warn('No se pudo leer el borrador del servidor:', err);
+            }
+        }
+        if (!draft) {
+            try {
+                const local = JSON.parse(localStorage.getItem(PENDING_DRAFT_KEY) || 'null');
+                if (local && local.text) draft = local;
+            } catch (err) { /* sin localStorage */ }
+        }
+        if (!draft) return;
+
+        const sender = myUsername || draft.username || 'Anónimo';
+        try {
+            const { error } = await supabaseClient
+                .from('messages')
+                .insert([{ text: draft.text, sender_id: mySessionId, username: sender }]);
+            if (error) throw error;
+            try { localStorage.removeItem(PENDING_DRAFT_KEY); } catch (err) { /* sin localStorage */ }
+            if (msgInput && normalizeMessageText(msgInput.value) === draft.text) msgInput.value = '';
+        } catch (err) {
+            console.error('No se pudo enviar el borrador pendiente; se conserva para reintentar:', err);
+            if (userId) {
+                supabaseClient.from('pending_drafts')
+                    .upsert({ user_id: userId, text: draft.text, username: draft.username || null })
+                    .then(() => { serverDraftExists = true; });
+            }
+        }
     } finally {
         isRecoveringDraft = false;
     }
@@ -807,7 +884,14 @@ function flushDraftOnClose() {
             body: JSON.stringify({ text, sender_id: mySessionId, username: myUsername || 'Anónimo' })
         });
         msgInput.value = ''; // evita reenvío si la página vuelve del bfcache
-        clearDraftBackup();
+        try { localStorage.removeItem(PENDING_DRAFT_KEY); } catch (e) { /* sin localStorage */ }
+        if (serverDraftExists && cachedUserId) {
+            fetch(`${SUPABASE_URL}/rest/v1/pending_drafts?user_id=eq.${cachedUserId}`, {
+                method: 'DELETE',
+                keepalive: true,
+                headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${cachedAccessToken}` }
+            });
+        }
     } catch (err) {
         console.error('Auto-envío al cerrar falló:', err);
     }
