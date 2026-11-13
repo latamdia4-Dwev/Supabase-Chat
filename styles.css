@@ -2372,6 +2372,18 @@ html.brightness-dimmed {
    Se muestran en bloque monoespaciado con scroll horizontal, sin
    ajustar líneas, para conservar la estructura original.
    ================================================================ */
+.msg-link {
+    color: inherit;
+    text-decoration: underline;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+}
+
+.msg-link:hover {
+    opacity: 0.8;
+}
+
 .msg-pre {
     margin: 0;
     padding: 6px 8px;

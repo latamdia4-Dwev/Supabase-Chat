@@ -21,6 +21,52 @@ function isStructuredText(text) {
     return /\t/.test(text) || /^[ ]+\S/m.test(text) || /\S {2,}\S/.test(text);
 }
 
+// Enlaces: http(s):// y www. Solo se aceptan esos esquemas (nunca javascript:, data:, etc.).
+const MESSAGE_URL_REGEX = /\b(?:https?:\/\/|www\.)[^\s<>"']+/gi;
+
+// Quita puntuación final que no suele ser parte del enlace ("mira https://a.com.", "(https://a.com)")
+function splitUrlTrailingPunctuation(rawUrl) {
+    let url = rawUrl;
+    let trailing = '';
+    while (url.length > 0) {
+        const last = url[url.length - 1];
+        const unbalancedParen = last === ')' && (url.match(/\(/g) || []).length < (url.match(/\)/g) || []).length;
+        if (/[.,;:!?\]}'"]/.test(last) || unbalancedParen) {
+            trailing = last + trailing;
+            url = url.slice(0, -1);
+        } else {
+            break;
+        }
+    }
+    return { url, trailing };
+}
+
+// Llena 'el' con el texto, convirtiendo los enlaces en <a> que abren en una pestaña nueva.
+// Se construye con nodos de texto (no innerHTML), así el contenido nunca se interpreta como HTML.
+function appendTextWithLinks(el, text) {
+    let lastIndex = 0;
+    MESSAGE_URL_REGEX.lastIndex = 0;
+    let match;
+    while ((match = MESSAGE_URL_REGEX.exec(text)) !== null) {
+        const { url, trailing } = splitUrlTrailingPunctuation(match[0]);
+        if (match.index > lastIndex) el.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        if (url.length > 0) {
+            const a = document.createElement('a');
+            a.href = /^www\./i.test(url) ? 'https://' + url : url;
+            a.textContent = url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            a.className = 'msg-link';
+            // El clic en el enlace no debe activar otras acciones de la burbuja
+            a.addEventListener('click', (e) => e.stopPropagation());
+            el.appendChild(a);
+        }
+        if (trailing) el.appendChild(document.createTextNode(trailing));
+        lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) el.appendChild(document.createTextNode(text.slice(lastIndex)));
+}
+
 // Agrega el texto de un mensaje al contenedor y devuelve el elemento creado.
 function appendMessageText(container, text, isHidden) {
     const el = document.createElement(isStructuredText(text) ? 'pre' : 'p');
@@ -34,7 +80,7 @@ function appendMessageText(container, text, isHidden) {
         el.style.textDecoration = 'line-through';
         el.style.opacity = '0.6';
     }
-    el.textContent = text;
+    appendTextWithLinks(el, text);
     container.appendChild(el);
     return el;
 }

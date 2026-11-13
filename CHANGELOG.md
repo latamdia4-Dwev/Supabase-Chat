@@ -11,6 +11,10 @@ al más antiguo. Formato libre, en español, pensado para que cualquiera
 - Cerrar sesión (🙈): ahora envía el texto pendiente (`sendDraftBeforeLogout`) antes de `signOut()`.
 - Respaldo en `localStorage` (`pendingChatDraft`) mientras se escribe y en `visibilitychange`; si no llegó a enviarse (apagado, cierre brusco, fallo de red), se envía en el siguiente inicio de sesión del mismo usuario (`recoverPendingDraft`, llamado desde `finishLogin`). Se limpia al enviar normalmente o al vaciar el campo.
 - Limitación: con el equipo apagado no se puede enviar nada; el mensaje sale al volver a iniciar sesión.
+- localStorage no es fiable si el navegador lo borra al cerrarse: el respaldo principal pasa a la base de datos (tabla `pending_drafts`, una fila por usuario con RLS; ver `sql/pending_drafts.sql`, ejecutar una vez en Supabase). Se sincroniza 3 s después de dejar de escribir y al pasar la pestaña a segundo plano, así que a lo más se pierden los últimos segundos escritos. Al iniciar sesión se reclama la fila con `delete ... returning` para que dos dispositivos no lo envíen dos veces; si el envío falla, se vuelve a guardar. localStorage queda como respaldo secundario si la tabla no existe o no hay red.
+
+### 🔗 Enlaces clicables en el chat y en mensajes privados
+- Los enlaces `http(s)://` y `www.` en los mensajes se vuelven clicables y abren en una pestaña nueva (`rel="noopener noreferrer"`). Se construyen con nodos DOM (sin `innerHTML`) y solo se aceptan esos esquemas. Se quita la puntuación final ("mira https://a.com.") y funcionan también dentro de los bloques monoespaciados.
 
 ## 2026-11-11 — v2.5.0
 

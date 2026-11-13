@@ -14,6 +14,7 @@ const WHATS_NEW_SECTIONS = [
             'Toca una foto para verla en grande, con zoom (rueda del mouse) y arrastrando para moverla.',
             'Reacciona a cualquier mensaje con un emoji, tocando el ícono 😊.',
             'El chat carga los mensajes más antiguos automáticamente cuando subes hasta arriba del todo.',
+            'Los enlaces (http://, https:// o www.) en el chat y en los mensajes privados son clicables y abren en una pestaña nueva.',
             'Si pegas texto con sangrías, tabulaciones o columnas (código, tablas), se muestra en un bloque de letra monoespaciada con scroll horizontal para conservar su estructura.',
         ],
     },

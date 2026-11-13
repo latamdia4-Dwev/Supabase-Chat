@@ -11,4 +11,7 @@ Chat con Supabase (auth, mensajes, mensajes privados), Cloudflare R2 (imágenes,
 - `music.js`: radio, música, álbumes (incluye álbumes ocultos) y reproductor.
 - `games.js`, `lock.js`, `auth.js`, `media-api.js`, `media-picker.js`, `whatsnew.js`, `passwords.js`.
 
+## Base de datos
+- `sql/pending_drafts.sql`: tabla del respaldo del mensaje pendiente (ejecutar una vez en Supabase).
+
 Ver `CHANGELOG.md` para el historial de cambios.
